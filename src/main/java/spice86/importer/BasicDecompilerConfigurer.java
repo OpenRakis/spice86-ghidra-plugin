@@ -5,10 +5,10 @@ import ghidra.app.decompiler.DecompileOptions;
 import ghidra.app.decompiler.parallel.DecompileConfigurer;
 import ghidra.program.model.listing.Program;
 
-class BasicConfigurer implements DecompileConfigurer {
+class BasicDecompilerConfigurer implements DecompileConfigurer {
   private Program program;
 
-  public BasicConfigurer(Program program) {
+  public BasicDecompilerConfigurer(Program program) {
     this.program = program;
   }
 

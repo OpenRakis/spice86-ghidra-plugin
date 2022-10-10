@@ -1,6 +1,5 @@
 package spice86.importer;
 
-import ghidra.app.script.GhidraScript;
 import ghidra.program.database.function.OverlappingFunctionException;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressRange;
@@ -9,31 +8,29 @@ import ghidra.program.model.address.AddressSetView;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Listing;
 import ghidra.program.model.listing.Program;
-import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
 import org.apache.commons.collections4.IteratorUtils;
-import spice86.tools.Log;
+import spice86.tools.Context;
+import spice86.tools.ObjectWithContextAndLog;
 import spice86.tools.SegmentedAddress;
 import spice86.tools.Utils;
 
 import java.util.List;
 
-class FunctionSplitter {
+class FunctionSplitter extends ObjectWithContextAndLog {
   private Program program;
-  private Log log;
   private SegmentedAddressGuesser segmentedAddressGuesser;
   private FunctionCreator functionCreator;
 
-  public FunctionSplitter(Program program, Log log, SegmentedAddressGuesser segmentedAddressGuesser,
+  public FunctionSplitter(Context context, SegmentedAddressGuesser segmentedAddressGuesser,
       FunctionCreator functionCreator) {
-    this.program = program;
-    this.log = log;
+    super(context);
+    this.program = context.getProgram();
     this.segmentedAddressGuesser = segmentedAddressGuesser;
     this.functionCreator = functionCreator;
   }
 
-  public int splitAllFunctions()
-      throws InvalidInputException, OverlappingFunctionException, DuplicateNameException {
+  public int splitAllFunctions() throws InvalidInputException, OverlappingFunctionException {
     List<Function> functions = Utils.getAllFunctions(program);
     int numberOfCreated = 0;
 
@@ -66,12 +63,12 @@ class FunctionSplitter {
       if (addressRange == entryPointRange) {
         String name = function.getName();
         log.info("Re-creating function named " + name + " with body " + newBody + " and entry point " + entryPoint);
-        functionCreator.createFunction(name, entryPoint, addressRange);
+        functionCreator.createFunctionWithDefinedBody(name, entryPoint, addressRange);
       } else {
         Address start = addressRange.getMinAddress();
         String newName = generateSplitName(start);
         log.info("Creating additional function from split named " + newName + " with body " + newBody);
-        functionCreator.createFunction(newName, start, addressRange);
+        functionCreator.createFunctionWithDefinedBody(newName, start, addressRange);
         numberOfCreated++;
       }
     }

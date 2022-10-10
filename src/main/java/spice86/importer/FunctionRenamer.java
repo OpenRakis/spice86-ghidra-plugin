@@ -1,24 +1,23 @@
 package spice86.importer;
 
-import ghidra.app.script.GhidraScript;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.FunctionIterator;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
-import spice86.tools.Log;
+import spice86.tools.Context;
+import spice86.tools.ObjectWithContextAndLog;
 import spice86.tools.SegmentedAddress;
 import spice86.tools.Utils;
 
-class FunctionRenamer {
+class FunctionRenamer extends ObjectWithContextAndLog {
   private Program program;
-  private Log log;
   private SegmentedAddressGuesser segmentedAddressGuesser;
 
-  public FunctionRenamer(Program program, Log log, SegmentedAddressGuesser segmentedAddressGuesser) {
-    this.program = program;
-    this.log = log;
+  public FunctionRenamer(Context context, SegmentedAddressGuesser segmentedAddressGuesser) {
+    super(context);
+    this.program = context.getProgram();
     this.segmentedAddressGuesser = segmentedAddressGuesser;
   }
 
@@ -52,8 +51,7 @@ class FunctionRenamer {
           + ". Address in name and ghidra address do not match. Renaming it.");
     }
     String prefix = "ghidra_guess_";
-    log.info("processing " + functionName + " at address " + Utils.toHexWith0X(
-        (int)ghidraAddress));
+    log.info("processing " + functionName + " at address " + Utils.toHexWith0X((int)ghidraAddress));
     SegmentedAddress address = guessAddress(function);
     String name = prefix + Utils.toHexSegmentOffsetPhysical(address);
     function.setName(name, SourceType.USER_DEFINED);

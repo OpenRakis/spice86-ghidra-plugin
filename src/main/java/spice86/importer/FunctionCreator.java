@@ -2,7 +2,6 @@ package spice86.importer;
 
 import ghidra.app.cmd.function.CreateFunctionCmd;
 import ghidra.app.cmd.function.DeleteFunctionCmd;
-import ghidra.app.script.GhidraScript;
 import ghidra.program.database.function.OverlappingFunctionException;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressRange;
@@ -12,22 +11,22 @@ import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Listing;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.symbol.SourceType;
-import ghidra.program.model.symbol.Symbol;
 import ghidra.util.exception.InvalidInputException;
 import ghidra.util.task.TaskMonitor;
-import spice86.tools.Log;
+import spice86.tools.Context;
+import spice86.tools.LabelManager;
+import spice86.tools.ObjectWithContextAndLog;
 
-class FunctionCreator {
+class FunctionCreator extends ObjectWithContextAndLog {
   private Program program;
-  private Log log;
-  private EntryPointDisassembler entryPointDisassembler;
+  private TaskMonitor taskMonitor;
   private LabelManager labelManager;
 
-  public FunctionCreator(Program program, Log log) {
-    this.program = program;
-    this.log = log;
-    this.entryPointDisassembler = new EntryPointDisassembler(program, log);
-    this.labelManager = new LabelManager(program, log);
+  public FunctionCreator(Context context, LabelManager labelManager) {
+    super(context);
+    this.program = context.getProgram();
+    this.taskMonitor = context.getMonitor();
+    this.labelManager = labelManager;
   }
 
   public void removeSymbolAt(Address address) {
@@ -42,7 +41,7 @@ class FunctionCreator {
     }
   }
 
-  public void createFunction(String name, Address entryPoint, AddressRange addressRange)
+  public void createFunctionWithDefinedBody(String name, Address entryPoint, AddressRange addressRange)
       throws InvalidInputException, OverlappingFunctionException {
     Listing listing = program.getListing();
     AddressSetView newBody = new AddressSet(addressRange);
@@ -72,6 +71,6 @@ class FunctionCreator {
 
   private boolean runCreateFunctionCommand(Address entryPoint, String name, boolean recreate) {
     CreateFunctionCmd cmd = new CreateFunctionCmd(name, entryPoint, null, SourceType.USER_DEFINED, false, recreate);
-    return cmd.applyTo(program, TaskMonitor.DUMMY);
+    return cmd.applyTo(program, taskMonitor);
   }
 }

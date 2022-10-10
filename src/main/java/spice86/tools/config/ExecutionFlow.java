@@ -1,6 +1,7 @@
-package spice86.tools;
+package spice86.tools.config;
 
 import com.google.gson.annotations.SerializedName;
+import spice86.tools.SegmentedAddress;
 
 import java.util.Collection;
 import java.util.HashMap;

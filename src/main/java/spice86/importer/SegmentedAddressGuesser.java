@@ -1,17 +1,17 @@
 package spice86.importer;
 
-import spice86.tools.Log;
+import spice86.tools.Context;
+import spice86.tools.ObjectWithContextAndLog;
 import spice86.tools.SegmentedAddress;
 import spice86.tools.Utils;
 
 import java.util.Map;
 
-class SegmentedAddressGuesser {
-  private Log log;
+class SegmentedAddressGuesser extends ObjectWithContextAndLog {
   private Map<Integer, Integer> segmentLengths;
 
-  public SegmentedAddressGuesser(Log log, Map<Integer, Integer> segmentLengths) {
-    this.log = log;
+  public SegmentedAddressGuesser(Context context, Map<Integer, Integer> segmentLengths) {
+    super(context);
     this.segmentLengths = segmentLengths;
   }
 

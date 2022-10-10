@@ -1,54 +1,35 @@
 package spice86.importer;
 
-import ghidra.app.cmd.label.SetLabelPrimaryCmd;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.symbol.RefType;
 import ghidra.program.model.symbol.ReferenceManager;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.symbol.Symbol;
-import ghidra.program.model.symbol.SymbolTable;
 import ghidra.program.model.symbol.SymbolType;
-import ghidra.util.exception.InvalidInputException;
-import spice86.tools.ExecutionFlow;
-import spice86.tools.Log;
+import spice86.tools.Context;
+import spice86.tools.LabelManager;
 import spice86.tools.SegmentedAddress;
 import spice86.tools.Utils;
+import spice86.tools.config.ExecutionFlow;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 class ReferencesImporter {
   private Program program;
-  private EntryPointDisassembler entryPointDisassembler;
   private LabelManager labelManager;
+  private EntryPointDisassembler entryPointDisassembler;
 
-  public ReferencesImporter(Program program, Log log) {
-    this.program = program;
-    this.entryPointDisassembler = new EntryPointDisassembler(program, log);
-    this.labelManager = new LabelManager(program, log);
+  public ReferencesImporter(Context context, LabelManager labelManager, EntryPointDisassembler entryPointDisassembler) {
+    this.program = context.getProgram();
+    this.labelManager = labelManager;
+    this.entryPointDisassembler = entryPointDisassembler;
   }
 
   public void importReferences(ExecutionFlow executionFlow) throws Exception {
     importReferences(executionFlow.getJumpsFromTo(), RefType.COMPUTED_JUMP, "jump_target");
     importReferences(executionFlow.getCallsFromTo(), RefType.COMPUTED_CALL, null);
-  }
-
-  public void disassembleEntryPoints(ExecutionFlow executionFlow, Map<SegmentedAddress, String> functions) {
-    // Collect all the addresses to disassemble
-    List<Integer> addresses = new ArrayList<>();
-    addresses.addAll(extractEntryPointAddresses(executionFlow.getJumpsFromTo()));
-    addresses.addAll(extractEntryPointAddresses(executionFlow.getCallsFromTo()));
-    addresses.addAll(extractEntryPointAddresses(executionFlow.getRetsFromTo()));
-    addresses.addAll(functions.keySet().stream().map(SegmentedAddress::toPhysical).toList());
-    // Sort it and disassemble it so that the disassembly order is consistent accross each run.
-    addresses.stream().sorted().forEach(entryPointDisassembler::disassembleEntryPoint);
-  }
-
-  private List<Integer> extractEntryPointAddresses(Map<Integer, List<SegmentedAddress>> fromTo) {
-    return fromTo.values().stream().flatMap(Collection::stream).map(SegmentedAddress::toPhysical).toList();
   }
 
   private void importReferences(Map<Integer, List<SegmentedAddress>> fromTo, RefType refType, String labelPrefix)
@@ -75,8 +56,6 @@ class ReferencesImporter {
       }
     }
   }
-
-
 
   private boolean shouldCreateLabel(Symbol existingSymbol) {
     if (existingSymbol == null) {

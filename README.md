@@ -19,3 +19,10 @@ Run the following command in a terminal of your choice.
 gradle buildExtension
 ```
 Upon completion the output will be located in the dist folder.
+
+Sometimes ghidra doesn't like a plugin being redeployed over and over. When you do changes, you can alternatively just redeploy the jar to the correct folder. Here is what I added to my .zshrc to do it:
+```
+export GHIDRA_VERSION="10.1.5_PUBLIC"
+alias deployghidra='unzip -f dist/ghidra_${GHIDRA_VERSION}_`date +"%Y%m%d"`_spice86-ghidra-plugin.zip -d dist && cp dist/spice86-ghidra-plugin/lib/* ~/.ghidra/.ghidra_${GHIDRA_VERSION}/Extensions/spice86-ghidra-plugin/lib'
+```
+Then once build is done simply type deployghidra

@@ -1,7 +1,6 @@
 package spice86.tools;
 
 import com.google.gson.annotations.SerializedName;
-import spice86.importer.Spice86OneClickImport;
 
 public class SegmentedAddress implements Comparable<SegmentedAddress> {
   @SerializedName("Segment")

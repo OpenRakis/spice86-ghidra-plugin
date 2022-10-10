@@ -1,22 +1,21 @@
 package spice86.importer;
 
-import ghidra.app.script.GhidraScript;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Program;
-import spice86.tools.Log;
+import spice86.tools.Context;
+import spice86.tools.ObjectWithContextAndLog;
 import spice86.tools.SegmentedAddress;
 import spice86.tools.Utils;
 
 import java.util.Map;
 
-class FunctionImporter {
+class FunctionImporter extends ObjectWithContextAndLog {
   private Program program;
-  private Log log;
   private FunctionCreator functionCreator;
 
-  public FunctionImporter(Program program, Log log, FunctionCreator functionCreator) {
-    this.program = program;
-    this.log = log;
+  public FunctionImporter(Context context, FunctionCreator functionCreator) {
+    super(context);
+    this.program = context.getProgram();
     this.functionCreator = functionCreator;
   }
 

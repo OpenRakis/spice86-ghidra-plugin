@@ -1,6 +1,5 @@
 package spice86.importer;
 
-import ghidra.app.script.GhidraScript;
 import ghidra.program.database.function.OverlappingFunctionException;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressRange;
@@ -10,7 +9,8 @@ import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Instruction;
 import ghidra.program.model.listing.Program;
 import ghidra.util.exception.InvalidInputException;
-import spice86.tools.Log;
+import spice86.tools.Context;
+import spice86.tools.ObjectWithContextAndLog;
 import spice86.tools.SegmentedAddress;
 import spice86.tools.Utils;
 
@@ -20,19 +20,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-class OrphanedInstructionsScanner {
+class OrphanedInstructionsScanner extends ObjectWithContextAndLog {
   private long minAddress = 0x0;
   private long maxAddress = 0xFFFFF;
   private Program program;
-  private Log log;
   private FunctionCreator functionCreator;
   private SegmentedAddressGuesser segmentedAddressGuesser;
 
-  public OrphanedInstructionsScanner(Program program, Log log,
+  public OrphanedInstructionsScanner(Context context,
       FunctionCreator functionCreator,
       SegmentedAddressGuesser segmentedAddressGuesser) {
-    this.program = program;
-    this.log = log;
+    super(context);
+    this.program = context.getProgram();
     this.functionCreator = functionCreator;
     this.segmentedAddressGuesser = segmentedAddressGuesser;
   }
@@ -61,14 +60,16 @@ class OrphanedInstructionsScanner {
     for (long address = minAddress; address < maxAddress; ) {
       Long rangeEnd = rangeMap.get(address);
       if (rangeEnd != null) {
+        // no need to browse address space inside already known functions
         address = rangeEnd + 1;
       } else {
+        // address does not belong to a function
         Instruction instruction = getInstructionAt(address);
         if (instruction != null) {
+          // instruction that does not belong to a function found
           orphans.add(instruction);
           address += instruction.getLength();
         } else {
-          //println("In the void " + address);
           address++;
         }
       }
@@ -89,7 +90,33 @@ class OrphanedInstructionsScanner {
     return res;
   }
 
-  private void processOrphanRanges(Map<Integer, Integer> ranges, List<Instruction> orphans) {
+  public int createFunctionsForOrphanRanges() throws InvalidInputException, OverlappingFunctionException {
+    List<Instruction> orphans = findOrphans();
+    // grouping orphans per contiguous blocks
+    Map<Integer, Integer> ranges = createInstructionIndexesRanges(orphans);
+    int created = 0;
+    for (Map.Entry<Integer, Integer> rangeIndexes : ranges.entrySet()) {
+      Instruction start = orphans.get(rangeIndexes.getKey());
+      Instruction end = orphans.get(rangeIndexes.getValue());
+      Address entryPoint = start.getAddress();
+      Function existingFunction = program.getListing().getFunctionAt(entryPoint);
+      if (existingFunction != null) {
+        log.warning(
+            "Found existing function " + existingFunction.getName() + " at orphan range start. Not doing anything.");
+        continue;
+      }
+      AddressRange addressRange = new AddressRangeImpl(start.getAddress(), end.getAddress());
+      SegmentedAddress segmentedAddress =
+          segmentedAddressGuesser.guessSegmentedAddress((int)entryPoint.getUnsignedOffset());
+      functionCreator.createFunctionWithDefinedBody(
+          "orphan_range_" + Utils.toHexSegmentOffsetPhysical(segmentedAddress),
+          entryPoint, addressRange);
+      created++;
+    }
+    return created;
+  }
+
+  private void attemptReattachOrphanRanges(Map<Integer, Integer> ranges, List<Instruction> orphans) {
     for (Map.Entry<Integer, Integer> range : ranges.entrySet()) {
       int rangeIndexStart = range.getKey();
       Instruction start = orphans.get(rangeIndexStart);
@@ -108,34 +135,10 @@ class OrphanedInstructionsScanner {
     }
   }
 
-  public int createFunctionsForOrphanRanges() throws InvalidInputException, OverlappingFunctionException {
+  public int attemptReattachOrphans() {
     List<Instruction> orphans = findOrphans();
     Map<Integer, Integer> ranges = createInstructionIndexesRanges(orphans);
-    int created = 0;
-    for (Map.Entry<Integer, Integer> rangeIndexes : ranges.entrySet()) {
-      Instruction start = orphans.get(rangeIndexes.getKey());
-      Instruction end = orphans.get(rangeIndexes.getValue());
-      Address entryPoint = start.getAddress();
-      Function existingFunction = program.getListing().getFunctionAt(entryPoint);
-      if (existingFunction != null) {
-        log.info(
-            "Found existing function " + existingFunction.getName() + " at orphan range start. Not doing anything.");
-        continue;
-      }
-      AddressRange addressRange = new AddressRangeImpl(start.getAddress(), end.getAddress());
-      SegmentedAddress segmentedAddress =
-          segmentedAddressGuesser.guessSegmentedAddress((int)entryPoint.getUnsignedOffset());
-      functionCreator.createFunction("orphan_range_" + Utils.toHexSegmentOffsetPhysical(segmentedAddress),
-          entryPoint, addressRange);
-      created++;
-    }
-    return created;
-  }
-
-  public int reattachOrphans() throws Exception {
-    List<Instruction> orphans = findOrphans();
-    Map<Integer, Integer> ranges = createInstructionIndexesRanges(orphans);
-    processOrphanRanges(ranges, orphans);
+    attemptReattachOrphanRanges(ranges, orphans);
     log.info("Found " + orphans.size() + " orphaned instructions spanning over " + ranges.size() + " ranges.");
     return ranges.size();
   }
@@ -171,7 +174,7 @@ class OrphanedInstructionsScanner {
     return next.getAddress().getUnsignedOffset() == nextOrphan.getAddress().getUnsignedOffset();
   }
 
-  Instruction getInstructionAt(long address) {
+  private Instruction getInstructionAt(long address) {
     return program.getListing().getInstructionAt(Utils.toAddr(program, address));
   }
 }

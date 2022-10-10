@@ -1,6 +1,5 @@
 package spice86.tools;
 
-import ghidra.app.script.GhidraScript;
 import ghidra.app.services.ConsoleService;
 
 import java.io.Closeable;

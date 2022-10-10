@@ -1,13 +1,11 @@
 package spice86.tools;
 
-import ghidra.app.script.GhidraScript;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.FunctionIterator;
 import ghidra.program.model.listing.Listing;
 import ghidra.program.model.listing.Program;
 import org.apache.commons.collections4.IteratorUtils;
-import spice86.importer.Spice86OneClickImport;
 
 import java.util.List;
 

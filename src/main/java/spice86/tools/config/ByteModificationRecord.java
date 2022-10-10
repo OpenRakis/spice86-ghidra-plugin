@@ -1,8 +1,7 @@
-package spice86.tools;
+package spice86.tools.config;
 
 import com.google.gson.annotations.SerializedName;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
-import spice86.importer.Spice86OneClickImport;
 
 public class ByteModificationRecord {
   @SerializedName("OldValue") private int oldValue;

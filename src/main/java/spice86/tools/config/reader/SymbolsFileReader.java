@@ -1,5 +1,7 @@
-package spice86.importer;
+package spice86.tools.config.reader;
 
+import spice86.tools.Context;
+import spice86.tools.ObjectWithContextAndLog;
 import spice86.tools.SegmentedAddress;
 import spice86.tools.Utils;
 
@@ -10,8 +12,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class SymbolsFileReader {
+class SymbolsFileReader extends ObjectWithContextAndLog {
+  public SymbolsFileReader(Context context) {
+    super(context);
+  }
+
   public Map<SegmentedAddress, String> readFunctionFile(String filePath) throws IOException {
+    log.info("Reading symbols file");
     Map<SegmentedAddress, String> res = new HashMap<>();
     List<String> lines = Files.readAllLines(Paths.get(filePath));
     for (String line : lines) {
