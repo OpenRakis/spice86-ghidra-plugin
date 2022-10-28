@@ -45,8 +45,8 @@ class SymbolsFileReader extends ObjectWithContextAndLog {
       return;
     }
     try {
-      int segment = Utils.parseHex(nameSplit[nameSplit.length - 3]);
-      int offset = Utils.parseHex(nameSplit[nameSplit.length - 2]);
+      int segment = Utils.parseHex16(nameSplit[nameSplit.length - 3]);
+      int offset = Utils.parseHex16(nameSplit[nameSplit.length - 2]);
       SegmentedAddress address = new SegmentedAddress(segment, offset);
       res.put(address, name);
     } catch (NumberFormatException nfe) {

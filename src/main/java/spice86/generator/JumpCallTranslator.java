@@ -172,7 +172,7 @@ public class JumpCallTranslator {
     int baseOffset = instructionSegmentedAddress.getOffset() + parsedInstruction.getInstructionLength();
     String offsetPointer =
         toInstructionParameter(true, parsedInstruction.getParameter1(), parsedInstruction.getParameter1Offset());
-    String offset = parameterTranslator.castToUInt16(Utils.toHexWith0X(baseOffset) + " + " + offsetPointer);
+    String offset = parameterTranslator.castToUInt(Utils.toHexWith0X(baseOffset) + " + " + offsetPointer, 16);
     return parameterTranslator.toPhysicalAddress("CS", offset);
   }
 

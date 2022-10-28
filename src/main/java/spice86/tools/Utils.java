@@ -60,13 +60,17 @@ public class Utils {
     return String.format("%04X_%04X_%05X", address.getSegment(), address.getOffset(), address.toPhysical());
   }
 
-  public static int parseHex(String value) {
+  public static int parseHex16(String value) {
     return Integer.parseInt(value.replaceAll("0x", ""), 16);
+  }
+
+  public static long parseHex32(String value) {
+    return Long.parseLong(value.replaceAll("0x", ""), 16);
   }
 
   public static boolean isNumber(String value) {
     try {
-      parseHex(value);
+      parseHex16(value);
       return true;
     } catch (NumberFormatException nfe) {
       return false;
@@ -88,6 +92,9 @@ public class Utils {
   public static int uint16(int value) {
     return value & 0xFFFF;
   }
+  public static long uint32(long value) {
+    return value & 0xFFFFFFFF;
+  }
 
   /**
    * Sign extend value considering it is a 8 bit value
@@ -101,6 +108,9 @@ public class Utils {
    */
   public static int int16(int value) {
     return (short)value;
+  }
+  public static long int32(long value) {
+    return (int)value;
   }
 
   public static int getUint8(byte[] memory, int address) {
@@ -125,8 +135,8 @@ public class Utils {
       return null;
     }
     try {
-      return new SegmentedAddress(Utils.parseHex(split[split.length - 3]),
-          Utils.parseHex(split[split.length - 2]));
+      return new SegmentedAddress(Utils.parseHex16(split[split.length - 3]),
+          Utils.parseHex16(split[split.length - 2]));
     } catch (NumberFormatException nfe) {
       return null;
     }

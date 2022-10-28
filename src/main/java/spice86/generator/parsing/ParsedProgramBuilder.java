@@ -118,7 +118,7 @@ public class ParsedProgramBuilder extends ObjectWithContextAndLog {
       String addressExpression) {
     String[] split = addressExpression.split(":");
     Integer segment = getSegmentValue(codeSegmentVariables, split[0]);
-    Integer offset = Utils.parseHex(split[1]);
+    Integer offset = Utils.parseHex16(split[1]);
     return new SegmentedAddress(segment, offset);
   }
 

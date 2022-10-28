@@ -2,6 +2,7 @@ package spice86.generator;
 
 import spice86.generator.parsing.ParsedInstruction;
 import spice86.tools.Context;
+import spice86.tools.InvalidBitLengthException;
 import spice86.tools.ObjectWithContextAndLog;
 import spice86.tools.Utils;
 
@@ -36,7 +37,7 @@ public class ParameterTranslator extends ObjectWithContextAndLog {
   public String toSpice86Value(String param, Integer bits, int offset) {
     if (Utils.isNumber(param)) {
       // Convert to unsigned (ghidra loves signed)
-      int uintValue = Utils.uint(Utils.parseHex(param), bits);
+      int uintValue = Utils.uint(Utils.parseHex16(param), bits);
       return Utils.toHexWith0X(uintValue);
     }
     if (param.length() == 2) {
@@ -48,6 +49,9 @@ public class ParameterTranslator extends ObjectWithContextAndLog {
     }
     if (param.startsWith("word ptr ")) {
       return toSpice86Pointer(param.replaceAll("word ptr ", ""), 16, offset);
+    }
+    if (param.startsWith("dword ptr ")) {
+      return toSpice86Pointer(param.replaceAll("dword ptr ", ""), 32, offset);
     }
     if (bits != null) {
       return toSpice86Pointer(param, bits, offset);
@@ -169,41 +173,77 @@ public class ParameterTranslator extends ObjectWithContextAndLog {
     if (offset != 0) {
       if (isDirectValue(offsetExpression)) {
         // Do the addition directly at generation time
-        int value = Utils.parseHex(offsetExpression) + offset;
+        int value = Utils.parseHex16(offsetExpression) + offset;
         offsetExpression = Utils.toHexWith0X(value);
       } else {
         offsetExpression += " + " + offset;
       }
     }
-    return castToUInt16(offsetExpression);
+    return castToUInt(offsetExpression, 16);
   }
 
-  public String signExtendToUInt16(String expression) {
+  public String signExtendByteToUInt(String expression, int bits) {
     if (isDirectValue(expression)) {
       // Do the sign extension directly here to avoid confusing C#
-      int value = Utils.uint16(Utils.int16(Utils.parseHex(expression)));
+      long value;
+      if (bits == 16) {
+        value = Utils.uint16(Utils.int16(Utils.parseHex16(expression)));
+      } else if (bits == 32) {
+        value = Utils.uint32(Utils.int32(Utils.parseHex32(expression)));
+      } else {
+        throw new InvalidBitLengthException(bits);
+      }
       return Utils.toHexWith0X(value);
     }
-    return castToUInt16(castToInt16("(sbyte)" + expression));
+    return castToUInt(castToSignedInt("(sbyte)" + expression, bits), bits);
   }
 
-  public String castToUInt16(String expression) {
+  public String castToUInt(String expression, int bits) {
     if (expression.contains("+") || expression.contains("-") || expression.contains("(") || expression.contains("?")
         || expression.contains(":")) {
       // Complex expression, cast...
-      return "(ushort)(" + expression + ")";
+      String type = toUnsignedType(bits);
+      return "(" + type + ")(" + expression + ")";
     }
     return expression;
   }
 
-  public String castToInt16(String expression) {
-    return "(short)(" + expression + ")";
+  public String toUnsignedType(int bits) {
+    if (bits == 8) {
+      return "byte";
+    } else if (bits == 16) {
+      return "ushort";
+    } else if (bits == 32) {
+      return "uint";
+    } else if (bits == 64) {
+      return "ulong";
+    } else {
+      throw new InvalidBitLengthException(bits);
+    }
+  }
+
+  public String toSignedType(int bits) {
+    if (bits == 8) {
+      return "sbyte";
+    } else if (bits == 16) {
+      return "short";
+    } else if (bits == 32) {
+      return "int";
+    } else if (bits == 64) {
+      return "long";
+    } else {
+      throw new InvalidBitLengthException(bits);
+    }
+  }
+  public String castToSignedInt(String expression, int bits) {
+    String type = toSignedType(bits);
+    return "(" + type + ")(" + expression + ")";
   }
 
   public boolean isDirectValue(String expression) {
     if (expression.startsWith("0x") || expression.startsWith("-0x")) {
       try {
-        Utils.parseHex(expression);
+        Utils.parseHex16(expression);
         return true;
       } catch (NumberFormatException nfe) {
         return false;

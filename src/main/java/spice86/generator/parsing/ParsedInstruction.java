@@ -54,6 +54,8 @@ public class ParsedInstruction implements SelfModifyingCodeHandlingStatus {
   protected Integer modRmByteOffset;
 
   protected ModRM modRM;
+
+  protected Integer instructionBitLength;
   protected Integer parameter1;
   protected Integer parameter1Signed;
   protected Integer parameter1Offset;
@@ -136,6 +138,10 @@ public class ParsedInstruction implements SelfModifyingCodeHandlingStatus {
 
   public ModRM getModRM() {
     return modRM;
+  }
+
+  public Integer getInstructionBitLength() {
+    return instructionBitLength;
   }
 
   public Integer getParameter1() {
