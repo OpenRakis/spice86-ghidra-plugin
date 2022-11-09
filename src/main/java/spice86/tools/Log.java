@@ -11,13 +11,11 @@ public class Log implements Closeable {
   private final ConsoleService consoleService;
   private final String service;
   private final PrintWriter printWriterLogs;
-  private final boolean consoleOutput;
 
-  public Log(ConsoleService consoleService, String service, String logFile, boolean consoleOutput) throws IOException {
+  public Log(ConsoleService consoleService, String service, String logFile) throws IOException {
     this.consoleService = consoleService;
     this.service = service;
     this.printWriterLogs = new PrintWriter(new FileWriter(logFile));
-    this.consoleOutput = consoleOutput;
   }
 
   public void info(String line) {
@@ -34,7 +32,7 @@ public class Log implements Closeable {
 
   private void log(String line) {
     printWriterLogs.println(line);
-    if (consoleOutput) {
+    if (consoleService != null) {
       consoleService.addMessage(service, line);
     }
   }

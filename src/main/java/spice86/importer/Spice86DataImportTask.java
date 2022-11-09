@@ -3,7 +3,7 @@ package spice86.importer;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
-import ghidra.framework.plugintool.PluginTool;
+import ghidra.app.services.ConsoleService;
 import ghidra.program.model.listing.Program;
 import spice86.tools.Context;
 import spice86.tools.LabelManager;
@@ -15,21 +15,24 @@ import spice86.tools.config.PluginConfiguration;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Imports data into ghidra from spice86 and reorganizes the code in a way the generator can work on it without too many errors
  */
 public class Spice86DataImportTask extends Spice86Task {
-  private final static Map<Integer, Integer> SEGMENTS = Map.of(
-      0x1000, 0xFFFF,
-      0xC000, 0xFFFF,
-      0xD000, 0xFFFF,
-      0xE000, 0xFFFF,
-      0xF000, 0xFFFF);
+  private final static Map<Integer, Integer> DEFAULT_SEGMENTS = new HashMap<>();
 
-  public Spice86DataImportTask(PluginTool tool, Program program) {
-    super("Spice86 Data Import", "Spice86DataImport", tool, program);
+  static {
+    // generates default segment mapping: segments are 0x1000, 0x2000 ... and are FFFF in length
+    for (int segmentMultiple = 1; segmentMultiple <= 0xF; segmentMultiple++) {
+      DEFAULT_SEGMENTS.put(segmentMultiple * 0x1000, 0xFFFF);
+    }
+  }
+
+  public Spice86DataImportTask(ConsoleService consoleService, Program program) {
+    super("Spice86 Data Import", "Spice86DataImport", consoleService, program);
   }
 
   @Override
@@ -65,7 +68,7 @@ public class Spice86DataImportTask extends Spice86Task {
     int functionsWithOrphans = 0;
     int orphanRangesConvertedToFunctions = 0;
     boolean changes;
-    SegmentedAddressGuesser segmentedAddressGuesser = new SegmentedAddressGuesser(context, SEGMENTS);
+    SegmentedAddressGuesser segmentedAddressGuesser = new SegmentedAddressGuesser(context, DEFAULT_SEGMENTS);
     FunctionRenamer functionRenamer = new FunctionRenamer(context, segmentedAddressGuesser);
     FunctionSplitter functionSplitter = new FunctionSplitter(context, segmentedAddressGuesser, functionCreator);
     OrphanedInstructionsScanner orphanedInstructionsScanner =

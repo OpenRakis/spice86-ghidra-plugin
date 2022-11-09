@@ -1,5 +1,6 @@
 package spice86.generator;
 
+import ghidra.app.services.ConsoleService;
 import ghidra.framework.plugintool.PluginTool;
 import ghidra.program.model.listing.FunctionIterator;
 import ghidra.program.model.listing.Listing;
@@ -26,8 +27,8 @@ import java.util.stream.StreamSupport;
  * Please define the folder with the dump data via system environment variable SPICE86_DUMPS_FOLDER
  */
 public class Spice86CodeGeneratorTask extends Spice86Task {
-  public Spice86CodeGeneratorTask(PluginTool tool, Program program) {
-    super("Spice86 Code Generator", "Spice86CodeGenerator", tool, program);
+  public Spice86CodeGeneratorTask(ConsoleService consoleService, Program program) {
+    super("Spice86 Code Generator", "Spice86CodeGenerator", consoleService, program);
   }
 
   @Override

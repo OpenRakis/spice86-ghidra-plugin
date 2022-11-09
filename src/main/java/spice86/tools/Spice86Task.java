@@ -1,7 +1,6 @@
 package spice86.tools;
 
 import ghidra.app.services.ConsoleService;
-import ghidra.framework.plugintool.PluginTool;
 import ghidra.program.model.listing.Program;
 import ghidra.util.task.Task;
 import ghidra.util.task.TaskMonitor;
@@ -9,13 +8,13 @@ import spice86.tools.config.PluginConfiguration;
 import spice86.tools.config.reader.PluginConfigurationReader;
 
 public abstract class Spice86Task extends Task {
-  protected PluginTool tool;
+  protected ConsoleService consoleService;
   protected Program program;
   private String logServiceName;
 
-  public Spice86Task(String title, String logServiceName, PluginTool tool, Program program) {
+  public Spice86Task(String title, String logServiceName, ConsoleService consoleService, Program program) {
     super(title);
-    this.tool = tool;
+    this.consoleService = consoleService;
     this.program = program;
     this.logServiceName = logServiceName;
   }
@@ -25,8 +24,10 @@ public abstract class Spice86Task extends Task {
 
   @Override public void run(TaskMonitor monitor) {
     String baseFolder = System.getenv("SPICE86_DUMPS_FOLDER");
-    ConsoleService consoleService = tool.getService(ConsoleService.class);
-    try (Log log = new Log(consoleService, logServiceName, baseFolder + logServiceName + ".txt", true)) {
+    if (!baseFolder.endsWith("/")) {
+      baseFolder += "/";
+    }
+    try (Log log = new Log(consoleService, logServiceName, baseFolder + logServiceName + ".txt")) {
       Context context = new Context(log, monitor, program);
       logAndMonitor(context, "Base folder is " + baseFolder);
       PluginConfigurationReader pluginConfigurationReader = new PluginConfigurationReader(context);

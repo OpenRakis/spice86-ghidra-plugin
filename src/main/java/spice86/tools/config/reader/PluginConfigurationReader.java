@@ -9,6 +9,7 @@ import spice86.tools.config.CodeGeneratorConfig;
 import spice86.tools.config.ExecutionFlow;
 import spice86.tools.config.PluginConfiguration;
 
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -41,6 +42,10 @@ public class PluginConfigurationReader extends ObjectWithContextAndLog {
   }
 
   private CodeGeneratorConfig readCodeGeneratorConfigFromFile(String filePath) throws IOException {
+    if (!new File(filePath).exists()) {
+      log.info("No code generator configuration exists at " + filePath + " generating default configuration");
+      return generateDefaultConfiguration();
+    }
     log.info("Reading code generator configuration file");
     try (FileReader fileReader = new FileReader(filePath); JsonReader reader = new JsonReader(fileReader)) {
       Type type = new TypeToken<CodeGeneratorConfig>() {
@@ -48,5 +53,9 @@ public class PluginConfigurationReader extends ObjectWithContextAndLog {
       CodeGeneratorConfig res = new Gson().fromJson(reader, type);
       return res;
     }
+  }
+
+  private CodeGeneratorConfig generateDefaultConfiguration() {
+    return new CodeGeneratorConfig();
   }
 }
