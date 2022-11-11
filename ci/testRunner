@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -39,26 +38,38 @@ public class TestRunner {
   }
 
   private void run() throws Exception {
+    installSpice86Template();
     Map<String, File> bins = discoverBins(configuration.testBinRoot);
-    File generationRoot = Files.createTempDirectory("spice86-ghidra-plugin-ci").toFile();
+    File workspace = generateWorkspace();
     for (Map.Entry<String, File> binEntry : bins.entrySet()) {
-      runOneBin(generationRoot, binEntry.getKey(), binEntry.getValue());
+      runOneBin(workspace, binEntry.getKey(), binEntry.getValue());
     }
   }
 
-  private void runOneBin(File generationRoot, String binName, File bin) throws Exception {
+  private File generateWorkspace() throws IOException {
+    if (configuration.workspace != null) {
+      return new File(configuration.workspace);
+    }
+    return Files.createTempDirectory("spice86-ghidra-plugin-ci").toFile();
+  }
+
+  private void installSpice86Template() throws IOException, InterruptedException {
+    Utils.runExecutable("dotnet", "new", "install", "Spice86.Templates");
+  }
+
+  private void runOneBin(File workspace, String binName, File bin) throws Exception {
     Utils.logSection("Processing bin " + binName);
 
-    File generationForBinRoot = new File(generationRoot.getCanonicalPath() + "/" + binName);
-    File emulatedRunRoot = Utils.mkdir(generationForBinRoot, "emulatedRun");
+    File workspaceForBin = new File(workspace.getCanonicalPath() + "/" + binName);
+    File emulatedRunRoot = Utils.mkdir(workspaceForBin, "emulatedRun");
     runSpice86(bin, emulatedRunRoot);
-    File ghidraProjectRoot = Utils.mkdir(generationForBinRoot, "ghidra");
+    File ghidraProjectRoot = Utils.mkdir(workspaceForBin, "ghidra");
     runGhidra(emulatedRunRoot, ghidraProjectRoot);
-    File generatedCodeTestProjectRoot = Utils.mkdir(generationForBinRoot, "generatedCodeTestProject");
+    File generatedCodeTestProjectRoot = Utils.mkdir(workspaceForBin, "generatedCodeTestProject");
     File generatedCode = new File(emulatedRunRoot.getCanonicalPath() + "/GeneratedCode.cs");
     File generatedExe = createAndBuildTestProject(generatedCodeTestProjectRoot, generatedCode, bin);
     Utils.logSection("Running generated code " + generatedCodeTestProjectRoot);
-    File generatedRunRoot = Utils.mkdir(generationForBinRoot, "generatedRun");
+    File generatedRunRoot = Utils.mkdir(workspaceForBin, "generatedRun");
     runSpice86(generatedExe, bin, generatedRunRoot);
     if (!compareMemoryDumps(emulatedRunRoot, generatedRunRoot)) {
       System.out.println("Test failed for " + binName);
@@ -79,9 +90,11 @@ public class TestRunner {
 
   private void runSpice86(File spice86Exe, File bin, File dataOutputFolder) throws Exception {
     Utils.logSection("Executing spice86");
-    Utils.runExecutable(spice86Exe.getCanonicalPath(), "--Exe", bin.getCanonicalPath(), "--DumpDataOnExit", "true",
+    Utils.runExecutable(spice86Exe.getCanonicalPath(),
+        "--Exe", bin.getCanonicalPath(),
+        "--DumpDataOnExit", "true",
+        "--InstallInterruptVector", "false",
         "--RecordedDataDirectory", dataOutputFolder.getCanonicalPath());
-    //"--InstallInterruptVector", "false"
   }
 
   private void runGhidra(File spice86RunRoot, File ghidraRunRoot) throws Exception {
@@ -168,6 +181,8 @@ class CommandLineParser {
         case "testBinRoot" -> res.testBinRoot = value;
         case "ghidraHome" -> res.ghidraHome = value;
         case "scriptPath" -> res.scriptPath = value;
+        case "workspace" -> res.workspace = value;
+        case "skipTemplateUpdate" -> res.skipTemplateUpdate = Boolean.parseBoolean(value);
         default -> displayHelpAndQuit("Unsupported option " + key);
       }
     }
@@ -183,7 +198,9 @@ class CommandLineParser {
         --spice86Exe=...: Path to spice86 binary
         --testBinRoot=...: Path to the folder containing the test cases
         --ghidraHome=...: Path to ghidra home folder
-        --scriptPath=...: Path to the headless Spice86PluginRunner.java script""";
+        --scriptPath=...: Path to the headless Spice86PluginRunner.java script
+        --workspace=...: Optional, Path to workspace for all the files for a run. If not specified will run in a temp directory.
+        --skipTemplateUpdate=:... Optional. If true, will not install the spice86 template and use whatever is configured in the system""";
     System.out.println(error + "\n" + help);
     System.exit(1);
   }
@@ -194,6 +211,8 @@ class Configuration {
   String testBinRoot;
   String ghidraHome;
   String scriptPath;
+  String workspace;
+  boolean skipTemplateUpdate;
 
   public boolean isComplete() {
     return spice86Exe != null && testBinRoot != null && ghidraHome != null && scriptPath != null;
