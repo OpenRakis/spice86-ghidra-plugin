@@ -40,7 +40,7 @@ public class ParameterTranslator extends ObjectWithContextAndLog {
       int uintValue = Utils.uint(Utils.parseHex16(param), bits);
       return Utils.toHexWith0X(uintValue);
     }
-    if (param.length() == 2) {
+    if (param.length() == 2 || param.length() == 3) {
       // register
       return registerHandler.substituteRegister(param);
     }
@@ -179,7 +179,7 @@ public class ParameterTranslator extends ObjectWithContextAndLog {
         offsetExpression += " + " + offset;
       }
     }
-    return castToUInt(offsetExpression, 16);
+    return castToUnsignedInt(offsetExpression, 16);
   }
 
   public String signExtendByteToUInt(String expression, int bits) {
@@ -195,17 +195,16 @@ public class ParameterTranslator extends ObjectWithContextAndLog {
       }
       return Utils.toHexWith0X(value);
     }
-    return castToUInt(castToSignedInt("(sbyte)" + expression, bits), bits);
+    return castToUnsignedInt(castToSignedInt("(sbyte)" + expression, bits), bits);
   }
 
-  public String castToUInt(String expression, int bits) {
-    if (expression.contains("+") || expression.contains("-") || expression.contains("(") || expression.contains("?")
-        || expression.contains(":")) {
-      // Complex expression, cast...
-      String type = toUnsignedType(bits);
-      return "(" + type + ")(" + expression + ")";
+  public String castToUnsignedInt(String expression, int bits) {
+    if (Utils.isNumber(expression)) {
+      // No cast needed for sure.
+      return expression;
     }
-    return expression;
+    String type = toUnsignedType(bits);
+    return "(" + type + ")(" + expression + ")";
   }
 
   public String toUnsignedType(int bits) {
@@ -235,6 +234,7 @@ public class ParameterTranslator extends ObjectWithContextAndLog {
       throw new InvalidBitLengthException(bits);
     }
   }
+
   public String castToSignedInt(String expression, int bits) {
     String type = toSignedType(bits);
     return "(" + type + ")(" + expression + ")";
@@ -297,5 +297,13 @@ public class ParameterTranslator extends ObjectWithContextAndLog {
       case 7 -> "DI";
       default -> throw new RuntimeException("Unsupported regindex " + regIndex);
     };
+  }
+
+  public String generateAssignmentWithType(String type, String left, String right) {
+    return type + " " + generateAssignment(left, right);
+  }
+
+  public String generateAssignment(String left, String right) {
+    return left + " = " + right + ";";
   }
 }

@@ -11,13 +11,17 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * For a list of bins:
- * - Runs spice86 headless on each of them to collect runtime data in a folder with the bin name
+ * For a list of exe:
+ * - Runs spice86 headless on each of them to collect runtime data in a folder with the exe name
  * - Imports the code in ghidra and runs the plugin on it to generate a .cs file
  * - Creates an empty dotnet project
  * - Moves the generated code there
@@ -27,6 +31,7 @@ import java.util.stream.Stream;
  */
 public class TestRunner {
   private Configuration configuration;
+  private Log log = new Log();
 
   public static void main(String[] args) throws Exception {
     Configuration configuration = new CommandLineParser().generateConfiguration(args);
@@ -39,10 +44,20 @@ public class TestRunner {
 
   private void run() throws Exception {
     installSpice86Template();
-    Map<String, File> bins = discoverBins(configuration.testBinRoot);
+    Map<String, File> tests = discoverBins(configuration.testBinRoot);
     File workspace = generateWorkspace();
-    for (Map.Entry<String, File> binEntry : bins.entrySet()) {
-      runOneBin(workspace, binEntry.getKey(), binEntry.getValue());
+    int currentTest = 0;
+    for (Map.Entry<String, File> testEntry : tests.entrySet()) {
+      currentTest++;
+      log.logSectionSpace();
+      log.info("Test " + currentTest + "/" + tests.size());
+      String testName = testEntry.getKey();
+      if(configuration.testsToSkip.contains(testName)) {
+        log.info("Skipping " + testName+" as it is in the list of tests to skip");
+        continue;
+      }
+      runOneTest(workspace, testName, testEntry.getValue());
+      log.logSectionSpace();
     }
   }
 
@@ -57,48 +72,63 @@ public class TestRunner {
     Utils.runExecutable("dotnet", "new", "install", "Spice86.Templates");
   }
 
-  private void runOneBin(File workspace, String binName, File bin) throws Exception {
-    Utils.logSection("Processing bin " + binName);
+  private void runOneTest(File workspace, String testName, File testExe) throws Exception {
+    log.setContext("Test: " + testName);
+    log.logSection("Test started");
 
-    File workspaceForBin = new File(workspace.getCanonicalPath() + "/" + binName);
-    File emulatedRunRoot = Utils.mkdir(workspaceForBin, "emulatedRun");
-    runSpice86(bin, emulatedRunRoot);
-    File ghidraProjectRoot = Utils.mkdir(workspaceForBin, "ghidra");
+    File workspaceForTest = new File(workspace.getCanonicalPath() + "/" + testName);
+    File emulatedRunRoot = Utils.mkdir(workspaceForTest, "emulatedRun");
+    runSpice86(testExe, emulatedRunRoot);
+    File ghidraProjectRoot = Utils.mkdir(workspaceForTest, "ghidra");
     runGhidra(emulatedRunRoot, ghidraProjectRoot);
-    File generatedCodeTestProjectRoot = Utils.mkdir(workspaceForBin, "generatedCodeTestProject");
+    File generatedCodeTestProjectRoot = Utils.mkdir(workspaceForTest, "generatedCodeTestProject");
     File generatedCode = new File(emulatedRunRoot.getCanonicalPath() + "/GeneratedCode.cs");
-    File generatedExe = createAndBuildTestProject(generatedCodeTestProjectRoot, generatedCode, bin);
-    Utils.logSection("Running generated code " + generatedCodeTestProjectRoot);
-    File generatedRunRoot = Utils.mkdir(workspaceForBin, "generatedRun");
-    runSpice86(generatedExe, bin, generatedRunRoot);
+    File generatedExe = createAndBuildTestProject(generatedCodeTestProjectRoot, generatedCode, testExe);
+    log.logSection("Running generated code " + generatedCodeTestProjectRoot);
+    File generatedRunRoot = Utils.mkdir(workspaceForTest, "generatedRun");
+    runSpice86(generatedExe, testExe, generatedRunRoot);
     if (!compareMemoryDumps(emulatedRunRoot, generatedRunRoot)) {
-      System.out.println("Test failed for " + binName);
-      System.exit(1);
+      handleTestFailure(testName, testExe, emulatedRunRoot, ghidraProjectRoot, generatedCodeTestProjectRoot);
     }
-    System.exit(0);
+    log.setContext(null);
+  }
+
+  private void handleTestFailure(String testName, File testExe, File emulatedRunRoot, File ghidraProjectRoot, File generatedCodeTestProjectRoot) {
+    log.error("Test failed for " + testName);
+    String ghidraCommandToRun =
+        "export SPICE86_DUMPS_FOLDER=" + emulatedRunRoot + " && " + configuration.ghidraHome + "/ghidraRun "
+            + ghidraProjectRoot + "/spice86dumpMemoryDump.bin.gpr";
+    log.info(
+        "You can execute the following command to import the project into ghidra and diagnose with the gui: "
+            + ghidraCommandToRun);
+    log.info("C# project folder to import: " + generatedCodeTestProjectRoot);
+    String spice86DebugCommand = configuration.spice86Exe+" --GdbPort=10000 --Exe "+testExe;
+    log.info("Spice86 debug mode: " + spice86DebugCommand);
+    System.exit(1);
   }
 
   private Map<String, File> discoverBins(String root) {
-    return Stream.of(new File(root).listFiles())
+    return new TreeMap<>(Stream.of(new File(root).listFiles())
         .filter(file -> file.getName().endsWith(".bin"))
-        .collect(Collectors.toMap(file -> file.getName().replaceAll("\\.bin", ""), file -> file));
+        .collect(Collectors.toMap(file -> file.getName().replaceAll("\\.bin", ""), file -> file)));
   }
 
-  private void runSpice86(File bin, File dataOutputFolder) throws Exception {
-    runSpice86(new File(configuration.spice86Exe), bin, dataOutputFolder);
+  private void runSpice86(File exe, File dataOutputFolder) throws Exception {
+    runSpice86(new File(configuration.spice86Exe), exe, dataOutputFolder);
   }
 
-  private void runSpice86(File spice86Exe, File bin, File dataOutputFolder) throws Exception {
-    Utils.logSection("Executing spice86");
+  private void runSpice86(File spice86Exe, File exe, File dataOutputFolder) throws Exception {
+    log.logSection("Executing spice86");
     Utils.runExecutable(spice86Exe.getCanonicalPath(),
-        "--Exe", bin.getCanonicalPath(),
+        "--Exe", exe.getCanonicalPath(),
         "--DumpDataOnExit", "true",
-        "--InstallInterruptVector", "false",
-        "--RecordedDataDirectory", dataOutputFolder.getCanonicalPath());
+        "--RecordedDataDirectory", dataOutputFolder.getCanonicalPath(),
+        "--VerboseLogs", "true",
+        "--HeadlessMode", "true");
   }
 
   private void runGhidra(File spice86RunRoot, File ghidraRunRoot) throws Exception {
-    Utils.logSection("Executing Ghidra");
+    log.logSection("Executing Ghidra");
 
     File memoryDump = getMemoryDumpFile(spice86RunRoot);
 
@@ -128,14 +158,14 @@ public class TestRunner {
     fileWriter.close();
   }
 
-  private File createAndBuildTestProject(File projectRoot, File generatedCode, File bin)
+  private File createAndBuildTestProject(File projectRoot, File generatedCode, File exe)
       throws IOException, InterruptedException, NoSuchAlgorithmException {
-    Utils.logSection("Instantiating spice86 generated code template project");
+    log.logSection("Instantiating spice86 generated code template project");
     Utils.runExecutable(projectRoot, null, "dotnet", "new", "spice86.project");
-    Utils.logSection("Copying generated code");
+    log.logSection("Copying generated code");
     Utils.copy(generatedCode, projectRoot);
-    Utils.logSection("Injecting bin SHA-256");
-    String sha256 = Utils.sha256(bin);
+    log.logSection("Injecting exe SHA-256");
+    String sha256 = Utils.sha256(exe);
     File programCs = new File(projectRoot.getCanonicalPath() + "/Program.cs");
     Utils.replaceInFile(programCs, "SUPPORTED_EXE_CHECKSUM", sha256);
     Utils.runExecutable(projectRoot, null, "dotnet", "build");
@@ -143,25 +173,25 @@ public class TestRunner {
   }
 
   private boolean compareMemoryDumps(File emulatedRoot, File generatedRoot) throws IOException {
-    Utils.logSection("Comparing memory dumps between emulated and generated code");
+    log.logSection("Comparing memory dumps between emulated and generated code");
     File emulatedDumpFile = getMemoryDumpFile(emulatedRoot);
     File generatedDumpFile = getMemoryDumpFile(generatedRoot);
     byte[] emulatedRam = Files.readAllBytes(emulatedDumpFile.toPath());
     byte[] generatedRam = Files.readAllBytes(generatedDumpFile.toPath());
     if (emulatedRam.length != generatedRam.length) {
-      System.out.println("Error: emulated and generated ram files are not the same sizes!");
+      log.error("Emulated and generated ram files are not the same sizes!");
       return false;
     }
     for (int i = 0; i < emulatedRam.length; i++) {
       byte emulated = emulatedRam[i];
       byte generated = generatedRam[i];
       if (emulated != generated) {
-        System.out.println(
-            "Error: emulated and generated ram files differ at address " + i + " emulated:" + emulated + " generated:"
+        log.error("Emulated and generated ram files differ at address " + i + " emulated:" + emulated + " generated:"
                 + generated);
         return false;
       }
     }
+    log.info("Memory dumps match, SUCCESS!");
     return true;
   }
 }
@@ -183,6 +213,7 @@ class CommandLineParser {
         case "scriptPath" -> res.scriptPath = value;
         case "workspace" -> res.workspace = value;
         case "skipTemplateUpdate" -> res.skipTemplateUpdate = Boolean.parseBoolean(value);
+        case "testsToSkip" -> res.testsToSkip = new HashSet<>(Arrays.asList(value.split(",")));
         default -> displayHelpAndQuit("Unsupported option " + key);
       }
     }
@@ -200,7 +231,8 @@ class CommandLineParser {
         --ghidraHome=...: Path to ghidra home folder
         --scriptPath=...: Path to the headless Spice86PluginRunner.java script
         --workspace=...: Optional, Path to workspace for all the files for a run. If not specified will run in a temp directory.
-        --skipTemplateUpdate=:... Optional. If true, will not install the spice86 template and use whatever is configured in the system""";
+        --skipTemplateUpdate=:... Optional. If true, will not install the spice86 template and use whatever is configured in the system
+        --testsToSkip=... Optional. List of comma separated names of tests to skip. To skip add.bin and sub.bin, write --testsToSkip=add,sub""";
     System.out.println(error + "\n" + help);
     System.exit(1);
   }
@@ -213,6 +245,8 @@ class Configuration {
   String scriptPath;
   String workspace;
   boolean skipTemplateUpdate;
+
+  Set<String> testsToSkip = new HashSet<>();
 
   public boolean isComplete() {
     return spice86Exe != null && testBinRoot != null && ghidraHome != null && scriptPath != null;
@@ -252,11 +286,6 @@ class Utils {
     runExecutable(null, environment, command);
   }
 
-  public static void logSection(String message) {
-    String dashs = "----------------------";
-    System.out.println(dashs + " " + message + " " + dashs);
-  }
-
   public static File mkdir(File parent, String dir) throws IOException {
     File res = new File(parent.getCanonicalPath() + "/" + dir + "/");
     res.mkdirs();
@@ -280,8 +309,8 @@ class Utils {
 
   public static String sha256(File file) throws NoSuchAlgorithmException, IOException {
     MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
-    byte[] binFileContent = Files.readAllBytes(file.toPath());
-    byte[] hash = messageDigest.digest(binFileContent);
+    byte[] fileContent = Files.readAllBytes(file.toPath());
+    byte[] hash = messageDigest.digest(fileContent);
     return Utils.byteArrayToHexString(hash);
   }
 
@@ -292,5 +321,41 @@ class Utils {
     String content = new String(Files.readAllBytes(path), charset);
     String newContent = content.replaceAll(original, replacement);
     Files.write(path, newContent.getBytes(charset));
+  }
+}
+
+class Log {
+  private String context;
+
+  public void setContext(String context) {
+    this.context = context;
+  }
+
+  public void info(String message) {
+    log("[INFO] " + getContextPrint() + message);
+  }
+
+  public void error(String message) {
+    log("[ERROR] " + getContextPrint() + message);
+  }
+
+  public void logSection(String message) {
+    String dashs = "----------------------";
+    log("\n\n" + dashs + " " + getContextPrint() + message + " " + dashs);
+  }
+
+  public void logSectionSpace() {
+    log("\n\n\n\n");
+  }
+
+  private void log(String message) {
+    System.out.println(message);
+  }
+
+  private String getContextPrint() {
+    if (this.context != null) {
+      return "[" + this.context + "] ";
+    }
+    return "";
   }
 }

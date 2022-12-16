@@ -24,22 +24,6 @@ public class Utils {
     return indentString + input.replaceAll("\n", "\n" + indentString);
   }
 
-  public static String getType(Integer bits) {
-    if (bits == null) {
-      return "unknown";
-    }
-    if (bits == 8) {
-      return "byte";
-    }
-    if (bits == 16) {
-      return "ushort";
-    }
-    if (bits == 32) {
-      return "uint";
-    }
-    return "unknown";
-  }
-
   public static String litteralToUpperHex(String litteralString) {
     return litteralString.toUpperCase().replaceAll("0X", "0x");
   }

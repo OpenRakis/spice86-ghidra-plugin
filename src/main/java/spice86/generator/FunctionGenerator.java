@@ -1,6 +1,7 @@
 package spice86.generator;
 
 import org.apache.commons.collections4.CollectionUtils;
+import spice86.generator.instructiongenerator.InstructionGenerator;
 import spice86.generator.parsing.ParsedFunction;
 import spice86.generator.parsing.ParsedInstruction;
 import spice86.generator.parsing.ParsedProgram;

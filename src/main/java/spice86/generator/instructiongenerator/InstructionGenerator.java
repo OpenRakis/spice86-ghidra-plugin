@@ -1,7 +1,11 @@
-package spice86.generator;
+package spice86.generator.instructiongenerator;
 
 import ghidra.program.model.listing.Instruction;
 import org.apache.commons.collections4.CollectionUtils;
+import spice86.generator.JumpCallTranslator;
+import spice86.generator.ParameterTranslator;
+import spice86.generator.RegisterHandler;
+import spice86.generator.SelfModifyingCodeHandlingStatusImpl;
 import spice86.generator.parsing.ParsedFunction;
 import spice86.generator.parsing.ParsedInstruction;
 import spice86.generator.parsing.ParsedProgram;
@@ -24,6 +28,8 @@ import java.util.stream.Collectors;
 public class InstructionGenerator {
   private final Log log;
   private final ParameterTranslator parameterTranslator;
+  private final PopGenerator popGenerator;
+  private final PushGenerator pushGenerator;
   private final RegisterHandler registerHandler;
 
   private final ParsedProgram parsedProgram;
@@ -62,6 +68,8 @@ public class InstructionGenerator {
     this.instruction = parsedInstruction.getInstruction();
     this.jumpCallTranslator =
         new JumpCallTranslator(context, parameterTranslator, parsedProgram, currentFunction, parsedInstruction);
+    this.popGenerator = new PopGenerator(parameterTranslator);
+    this.pushGenerator = new PushGenerator(parameterTranslator, parsedInstruction);
   }
 
   public String convertInstructionToSpice86(boolean generateLabel) {
@@ -162,22 +170,22 @@ public class InstructionGenerator {
     if (canUseNativeOperation()) {
       return dest + nativeOperation + ";";
     }
-    return dest + " = " + operation + bits + "(" + dest + ");";
+    return parameterTranslator.generateAssignment(dest, operation + bits + "(" + dest + ")");
   }
 
   private String generateAssignmentWith2ParametersOnlyOneOperand(String operation, String[] parameters,
       Integer bits) {
     String dest = parameterTranslator.toSpice86Value(parameters[0], bits);
     String operand = parameterTranslator.toSpice86Value(parameters[1], bits);
-    return dest + " = " + operation + bits + "(" + operand + ");";
+    return parameterTranslator.generateAssignment(dest, operation + bits + "(" + operand + ")");
   }
 
   private String generateXor(String[] parameters) {
-    if (parameters[0].equals(parameters[1])) {
+    if (parameters[0].equals(parameters[1]) && canUseNativeOperation()) {
       Integer bits = parsedInstruction.getParameter1BitLength();
       // this is a set to 0
       String dest = parameterTranslator.toSpice86Value(parameters[0], bits);
-      return dest + " = 0;";
+      return parameterTranslator.generateAssignment(dest, "0");
     }
     return generateAssignmentWith2Parameters("Alu.Xor", "^", parameters);
   }
@@ -194,7 +202,7 @@ public class InstructionGenerator {
       }
       res += "// " + resNativeOperation + '\n';
     }
-    res += dest + " = " + operation + bitsParameter1 + "(" + dest + ", " + operand + ");";
+    res += parameterTranslator.generateAssignment(dest, operation + bitsParameter1 + "(" + dest + ", " + operand + ")");
     return res;
   }
 
@@ -234,7 +242,7 @@ public class InstructionGenerator {
 
   private String generateIns(String[] parameters, int bits) {
     String destination = getDestination(parameters, bits);
-    String operation = destination + " = Cpu.In" + bits + "(DX);";
+    String operation = parameterTranslator.generateAssignment(destination, "Cpu.In" + bits + "(DX)");
     return generateStringOperation(operation, false, true, bits);
   }
 
@@ -254,14 +262,14 @@ public class InstructionGenerator {
   private String generateStos(String[] parameters, int bits) {
     String source = getAXOrAL(bits);
     String destination = getDestination(parameters, bits);
-    String operation = destination + " = " + source + ";";
+    String operation = parameterTranslator.generateAssignment(destination, source);
     return generateStringOperation(operation, false, true, bits);
   }
 
   private String generateLods(String[] parameters, int bits) {
     String source = getSource(parameters, bits);
     String destination = getAXOrAL(bits);
-    String operation = destination + " = " + source + ";";
+    String operation = parameterTranslator.generateAssignment(destination, source);
     return generateStringOperation(operation, true, false, bits);
   }
 
@@ -275,7 +283,7 @@ public class InstructionGenerator {
   private String generateMovs(String[] parameters, int bits) {
     String destination = getDestination(parameters, bits);
     String source = getSource(parameters, bits);
-    String operation = destination + " = " + source + ";";
+    String operation = parameterTranslator.generateAssignment(destination, source);
     return generateStringOperation(operation, true, true, bits);
   }
 
@@ -311,18 +319,19 @@ public class InstructionGenerator {
 
   private String advanceRegister(String register, int bits) {
     String direction = "Direction" + bits;
-    String expression = parameterTranslator.castToUInt(register + " + " + direction, 16);
-    return register + " = " + expression + ";";
+    String expression = parameterTranslator.castToUnsignedInt(register + " + " + direction, 16);
+    return parameterTranslator.generateAssignment(register, expression);
   }
 
   private String generateNot(String[] parameters, Integer bits) {
     String parameter = parameterTranslator.toSpice86Value(parameters[0], bits);
-    return parameter + " = (" + Utils.getType(bits) + ")~" + parameter + ";";
+    return parameterTranslator.generateAssignment(parameter,
+        parameterTranslator.castToUnsignedInt("~" + parameter, bits));
   }
 
   private String generateNeg(String[] parameters, Integer bits) {
     String parameter = parameterTranslator.toSpice86Value(parameters[0], bits);
-    return parameter + " = Alu.Sub" + bits + "(0, " + parameter + ");";
+    return parameterTranslator.generateAssignment(parameter, "Alu.Sub" + bits + "(0, " + parameter + ")");
   }
 
   private String generateLXS(String segmentRegister, String[] parameters) {
@@ -331,7 +340,8 @@ public class InstructionGenerator {
     String value1 = parameterTranslator.toSpice86Value(parameters[1], 16, 0);
     String value2 = parameterTranslator.toSpice86Value(parameters[1], 16, 2);
     // Generate destinationRegister first as it is not a segment register, so it will not be used in subsequent computations for this instruction
-    return destinationRegister + " = " + value1 + ";\n" + destinationSegmentRegister + " = " + value2 + ";";
+    return parameterTranslator.generateAssignment(destinationRegister, value1) + "\n"
+        + parameterTranslator.generateAssignment(destinationSegmentRegister, value2);
   }
 
   private String generateLoop(String condition, String param) {
@@ -373,8 +383,8 @@ public class InstructionGenerator {
       String destination = parameterTranslator.toSpice86Value(parameters[0], bits);
       String operand1 = parameterTranslator.toSpice86Value(parameters[1], bits);
       String operand2 = parameterTranslator.toSpice86Value(parameters[2], bits);
-      String unsignedCast = parameterTranslator.toUnsignedType(bits);
-      return destination + " = (" + unsignedCast + ")Alu.Imul" + bits + "(" + operand1 + ", " + operand2 + ");";
+      return parameterTranslator.generateAssignment(destination,
+          parameterTranslator.castToUnsignedInt("Alu.Imul" + bits + "(" + operand1 + ", " + operand2 + ")", bits));
     }
     // Regular grp3 imul
     return generateGrp3ImulMul(true, bits, "Imul", parameters[0]);
@@ -384,16 +394,17 @@ public class InstructionGenerator {
     String opRes1 = generateImulIdivOpRes1(bits);
     String op2 = parameterTranslator.toSpice86Value(parameter, bits);
     String res2 = generateImulIdivRes2(bits);
-    String assignmentCast = parameterTranslator.toUnsignedType(bits);
     String opSignCast = signed ? "(" + parameterTranslator.toSignedType(bits) + ")" : "";
     String tempVar = parameterTranslator.generateTempVar("res" + aluOperation);
     int resBits = bits * 2;
     String resType = signed ? parameterTranslator.toSignedType(resBits) : parameterTranslator.toUnsignedType(resBits);
-    String operation =
-        resType + " " + tempVar + " = Alu." + aluOperation + bits + "(" + opSignCast + opRes1 + ", " + opSignCast + op2
-            + ");";
-    String operationAssignment1 = opRes1 + " = (" + assignmentCast + ")" + tempVar + ';';
-    String operationAssignment2 = res2 + " = (" + assignmentCast + ")(" + tempVar + " >> " + bits + ");";
+    String operation = parameterTranslator.generateAssignmentWithType(resType, tempVar,
+        "Alu." + aluOperation + bits + "(" + opSignCast + opRes1 + ", " + opSignCast + op2
+            + ")");
+    String operationAssignment1 =
+        parameterTranslator.generateAssignment(opRes1, parameterTranslator.castToUnsignedInt(tempVar, bits));
+    String operationAssignment2 = parameterTranslator.generateAssignment(res2,
+        parameterTranslator.castToUnsignedInt(tempVar + " >> " + bits, bits));
     return operation + '\n' + operationAssignment1 + '\n' + operationAssignment2;
   }
 
@@ -402,27 +413,32 @@ public class InstructionGenerator {
     String op1Type = signed ? parameterTranslator.toSignedType(op1Bits) : parameterTranslator.toUnsignedType(op1Bits);
     String op1Var = parameterTranslator.generateTempVar("op1" + aluOperation);
     String op1Cast = signed ? "(" + op1Type + ")" : "";
-    String op1Assignment = op1Type + " " + op1Var + " = " + op1Cast + generateDivIdviOp1(bits) + ";";
+    String op1Assignment =
+        parameterTranslator.generateAssignmentWithType(op1Type, op1Var, op1Cast + generateDivIdviOp1(bits));
 
     String op2Type = signed ? parameterTranslator.toSignedType(bits) : parameterTranslator.toUnsignedType(bits);
     String op2Var = parameterTranslator.generateTempVar("op2" + aluOperation);
     String op2Cast = signed ? "(" + op2Type + ")" : "";
     String op2Assignment =
-        op2Type + " " + op2Var + " = " + op2Cast + parameterTranslator.toSpice86Value(parameter, bits) + ";";
+        parameterTranslator.generateAssignmentWithType(op2Type, op2Var,
+            op2Cast + parameterTranslator.toSpice86Value(parameter, bits));
 
     String operationResultType = op2Type + "?";
     String operationResultVar = parameterTranslator.generateTempVar("res" + aluOperation);
-    String operationAssignment =
-        operationResultType + " " + operationResultVar + " = Alu." + aluOperation + bits + "(" + op1Var + ", " + op2Var
-            + ");";
+    String operationAssignment = parameterTranslator.generateAssignmentWithType(operationResultType, operationResultVar,
+        "Alu." + aluOperation + bits + "(" + op1Var + ", " + op2Var
+            + ")");
 
     String nullCheckAssignment =
         "if(" + operationResultVar + " == null) {\n  " + InstructionGenerator.generateFailAsUntested("Division by 0!",
             true) + "\n}";
     String resultCast = "(" + parameterTranslator.toUnsignedType(bits) + ")";
     String quotientCast = signed ? resultCast : "";
-    String quotientAssignment = generateImulIdivOpRes1(bits) + " = " + quotientCast + operationResultVar + ".Value;";
-    String remainderAssignment = generateImulIdivRes2(bits) + " = " + resultCast + "(" + op1Var + " % " + op2Var + ");";
+
+    String quotientAssignment = parameterTranslator.generateAssignment(generateImulIdivOpRes1(bits),
+        quotientCast + operationResultVar + ".Value");
+    String remainderAssignment = parameterTranslator.generateAssignment(generateImulIdivRes2(bits),
+        resultCast + "(" + op1Var + " % " + op2Var + ")");
     return op1Assignment + '\n' + op2Assignment + '\n' + operationAssignment + '\n' + nullCheckAssignment + '\n'
         + quotientAssignment + '\n'
         + remainderAssignment;
@@ -475,15 +491,16 @@ public class InstructionGenerator {
   private String generateLea(String[] parameters) {
     String offset = parameterTranslator.toOffsetExpression(parameters[1], 0);
     String destination = parameterTranslator.toSpice86Value(parameters[0], 16);
-    return destination + " = " + offset + ";";
+    return parameterTranslator.generateAssignment(destination, offset);
   }
 
   private String generateCbw() {
     int instructionBitLength = parsedInstruction.getInstructionBitLength();
     String sourceRegister = instructionBitLength == 16 ? "AL" : "AX";
     String destinationRegister = instructionBitLength == 16 ? "AX" : "EAX";
-    return destinationRegister + " = " + parameterTranslator.signExtendByteToUInt(sourceRegister,
-        parsedInstruction.getInstructionBitLength()) + ";";
+    return parameterTranslator.generateAssignment(destinationRegister,
+        parameterTranslator.signExtendByteToUInt(sourceRegister,
+            parsedInstruction.getInstructionBitLength()));
   }
 
   private String generateCwd() {
@@ -502,8 +519,8 @@ public class InstructionGenerator {
     } else if (bits == 32) {
       source = "EAX>=0x80000000?0xFFFFFFFF:0";
     }
-    String expression = parameterTranslator.castToUInt(source, bits);
-    return destination + " = " + expression + ";";
+    String expression = parameterTranslator.castToUnsignedInt(source, bits);
+    return parameterTranslator.generateAssignment(destination, expression);
   }
 
   private String convertInstructionWithoutPrefix(String mnemonic, String[] params) {
@@ -569,70 +586,13 @@ public class InstructionGenerator {
           parsedInstruction.getParameter1Offset(), bits, 0);
       this.selfModifyingCodeHandlingStatus.setParameter1Modified(true);
     }
-    return dest + " = " + source + ";";
-  }
-
-  private String generatePushAll(Integer bits) {
-    String spTempVar = parameterTranslator.generateTempVar("sp");
-    List<String> registers = bits == 16 ?
-        Arrays.asList("AX", "CX", "DX", "BX", spTempVar, "BP", "SI", "DI") :
-        Arrays.asList("EAX", "ECX", "EDX", "EBX", spTempVar, "EBP", "ESI", "EDI");
-    String pushCode =
-        registers.stream()
-            .map(value -> generatePush(value, bits)).collect(Collectors.joining("\n"));
-    String tempVarAssignment = bits == 16 ? "ushort " + spTempVar + " = SP;" : "uint " + spTempVar + " = ESP;";
-    return tempVarAssignment + '\n' + pushCode;
-  }
-
-  private String generatePopAll(Integer bits) {
-    String prefix = bits == 16 ? "" : "E";
-    return generatePop(prefix + "DI", bits) + '\n'
-        + generatePop(prefix + "SI", bits) + '\n'
-        + generatePop(prefix + "BP", bits) + '\n'
-        + "// not restoring SP, popping empty"
-        + generatePop(new String[] {}, bits) + '\n'
-        + generatePop(prefix + "BX", bits) + '\n'
-        + generatePop(prefix + "DX", bits) + '\n'
-        + generatePop(prefix + "CX", bits) + '\n'
-        + generatePop(prefix + "AX", bits);
-  }
-
-  private String generatePushFlags(Integer bits) {
-    return generatePush("FlagRegister" + bits, bits);
-  }
-
-  private String generatePopFlags(Integer bits) {
-    return generatePop("FlagRegister" + bits, bits);
+    return parameterTranslator.generateAssignment(dest, source);
   }
 
   private String generateXchg(String[] params, Integer bits) {
     String var1 = parameterTranslator.toSpice86Value(params[0], bits);
     String var2 = parameterTranslator.toSpice86Value(params[1], bits);
-    return "(" + var2 + ", " + var1 + ")" + " = " + "(" + var1 + ", " + var2 + ");";
-  }
-
-  private String generatePush(String[] params, Integer bits) {
-    String value = parameterTranslator.toSpice86Value(params[0], bits);
-    if (parsedInstruction.getParameter1BitLength() == 8) {
-      value = parameterTranslator.signExtendByteToUInt(value, parsedInstruction.getInstructionBitLength());
-    }
-    return generatePush(value, bits);
-  }
-
-  private String generatePush(String value, Integer bits) {
-    return "Stack.Push" + bits + "(" + value + ");";
-  }
-
-  private String generatePop(String register, Integer bits) {
-    return generatePop(new String[] { register }, bits);
-  }
-
-  private String generatePop(String[] params, Integer bits) {
-    String operation = "Stack.Pop" + bits + "();";
-    if (params.length == 1) {
-      return parameterTranslator.toSpice86Value(params[0], bits) + " = " + operation;
-    }
-    return operation;
+    return parameterTranslator.generateAssignment("(" + var2 + ", " + var1 + ")", "(" + var1 + ", " + var2 + ")");
   }
 
   private String generateRetNear(String[] params) {
@@ -783,12 +743,12 @@ public class InstructionGenerator {
       case "OR" -> generateAssignmentWith2Parameters("Alu.Or", "|", params);
       case "OUT" -> generateNoAssignmentWith2Parameters("Cpu.Out", params);
       case "OUTSB", "OUTSW" -> generateOuts(params, parameter1Bits);
-      case "POP" -> generatePop(params, parameter1Bits);
-      case "POPA" -> generatePopAll(parameter1Bits);
-      case "POPF" -> generatePopFlags(parameter1Bits);
-      case "PUSH" -> generatePush(params, parameter1Bits);
-      case "PUSHA" -> generatePushAll(parameter1Bits);
-      case "PUSHF" -> generatePushFlags(parameter1Bits);
+      case "POP" -> popGenerator.generatePop(params, parameter1Bits);
+      case "POPA" -> popGenerator.generatePopAll(parameter1Bits);
+      case "POPF" -> popGenerator.generatePopFlags(parameter1Bits);
+      case "PUSH" -> pushGenerator.generatePush(params, parameter1Bits);
+      case "PUSHA" -> pushGenerator.generatePushAll(parameter1Bits);
+      case "PUSHF" -> pushGenerator.generatePushFlags(parameter1Bits);
       case "RCL" -> generateAssignmentWith2Parameters("Alu.Rcl", null, params);
       case "RCR" -> generateAssignmentWith2Parameters("Alu.Rcr", null, params);
       case "RET" -> generateRetNear(params);

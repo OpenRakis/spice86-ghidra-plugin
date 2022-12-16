@@ -3,6 +3,7 @@ package spice86.generator;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolType;
+import spice86.generator.instructiongenerator.InstructionGenerator;
 import spice86.generator.parsing.ParsedFunction;
 import spice86.generator.parsing.ParsedInstruction;
 import spice86.generator.parsing.ParsedProgram;
@@ -172,7 +173,7 @@ public class JumpCallTranslator {
     int baseOffset = instructionSegmentedAddress.getOffset() + parsedInstruction.getInstructionLength();
     String offsetPointer =
         toInstructionParameter(true, parsedInstruction.getParameter1(), parsedInstruction.getParameter1Offset());
-    String offset = parameterTranslator.castToUInt(Utils.toHexWith0X(baseOffset) + " + " + offsetPointer, 16);
+    String offset = parameterTranslator.castToUnsignedInt(Utils.toHexWith0X(baseOffset) + " + " + offsetPointer, 16);
     return parameterTranslator.toPhysicalAddress("CS", offset);
   }
 
@@ -363,7 +364,7 @@ public class JumpCallTranslator {
 
   private String generateSwitchToIndirectTarget(String target, List<SegmentedAddress> targets,
       String errorInCaseNotFound, java.util.function.Function<SegmentedAddress, String> toCSharp) {
-    String tempVarName = parameterTranslator.generateTempVar("targetAddress_");
+    String targetAddressTempVarName = parameterTranslator.generateTempVar("targetAddress_");
     if (target.contains("cs1 * 0x10")) {
       log.info("Removing exe load address from switch target address calculation " + target);
       target = target.replaceAll("cs1 \\* 0x10 \\+ ", "");
@@ -371,8 +372,12 @@ public class JumpCallTranslator {
       log.info("Subtracting exe load address from target address calculation " + target);
       target += " - cs1 * 0x10";
     }
-    StringBuilder res = new StringBuilder("uint " + tempVarName + " = (uint)(" + target + ");\n");
-    res.append("switch(" + tempVarName + ") {\n");
+    String targetAddressTempVarAssignment =
+        parameterTranslator.generateAssignmentWithType("uint", targetAddressTempVarName,
+            parameterTranslator.castToUnsignedInt(target, 32));
+
+    StringBuilder res = new StringBuilder(targetAddressTempVarAssignment + "\n");
+    res.append("switch(" + targetAddressTempVarName + ") {\n");
     if (targets != null) {
       for (SegmentedAddress targetFromRecord : targets) {
         String action = toCSharp.apply(targetFromRecord);
@@ -389,7 +394,7 @@ public class JumpCallTranslator {
       }
     }
     String failAsUntested = InstructionGenerator.generateFailAsUntested(
-        "\"" + errorInCaseNotFound + "\" + ConvertUtils.ToHex32WithoutX(" + tempVarName + ")", false);
+        "\"" + errorInCaseNotFound + "\" + ConvertUtils.ToHex32WithoutX(" + targetAddressTempVarName + ")", false);
     res.append("  default: " + failAsUntested + "\n" + "    break;\n" + "}");
     return res.toString();
   }
