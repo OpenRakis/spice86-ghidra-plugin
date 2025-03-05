@@ -7,10 +7,14 @@ import ghidra.util.task.TaskMonitor;
 import spice86.tools.config.PluginConfiguration;
 import spice86.tools.config.reader.PluginConfigurationReader;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 public abstract class Spice86Task extends Task {
+  private static final String SPICE86_DUMPS_FOLDER_ENVIRONMENT_VARIABLE = "SPICE86_DUMPS_FOLDER";
   protected ConsoleService consoleService;
   protected Program program;
-  private String logServiceName;
+  private final String logServiceName;
 
   public Spice86Task(String title, String logServiceName, ConsoleService consoleService, Program program) {
     super(title);
@@ -23,9 +27,9 @@ public abstract class Spice86Task extends Task {
       throws Exception;
 
   @Override public void run(TaskMonitor monitor) {
-    String baseFolder = System.getenv("SPICE86_DUMPS_FOLDER");
-    if (!baseFolder.endsWith("/")) {
-      baseFolder += "/";
+    String baseFolder = getBaseFolderIfExists();
+    if (baseFolder == null) {
+      return;
     }
     try (Log log = new Log(consoleService, logServiceName, baseFolder + logServiceName + ".txt")) {
       Context context = new Context(log, monitor, program);
@@ -41,6 +45,33 @@ public abstract class Spice86Task extends Task {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private String getBaseFolderIfExists() {
+    String baseFolder = System.getenv(SPICE86_DUMPS_FOLDER_ENVIRONMENT_VARIABLE);
+    if (baseFolder == null) {
+      logErrorOrThrowExceptionIfNoLogger(
+          SPICE86_DUMPS_FOLDER_ENVIRONMENT_VARIABLE + " environment variable is not set");
+      return null;
+    }
+    if (!baseFolder.endsWith("/")) {
+      baseFolder += "/";
+    }
+    if (baseFolder.contains("~")) {
+      baseFolder = baseFolder.replace("~", System.getProperty("user.home"));
+    }
+    if (!Files.exists(Path.of(baseFolder))) {
+      logErrorOrThrowExceptionIfNoLogger(" folder " + baseFolder + " does not exist");
+      return null;
+    }
+    return baseFolder;
+  }
+
+  private void logErrorOrThrowExceptionIfNoLogger(String message) {
+    if (consoleService == null) {
+      throw new IllegalArgumentException(message);
+    }
+    consoleService.addErrorMessage(logServiceName, message);
   }
 
   protected void logAndMonitorPass(Context context, int pass, String message) {

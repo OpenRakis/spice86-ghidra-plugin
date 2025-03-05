@@ -31,6 +31,9 @@ public class Spice86DataImportTask extends Spice86Task {
     }
   }
 
+  // Feature is broken, ghidra creates overlapping functions.
+  private boolean includeOrphans = false;
+
   public Spice86DataImportTask(ConsoleService consoleService, Program program) {
     super("Spice86 Data Import", "Spice86DataImport", consoleService, program);
   }
@@ -94,18 +97,21 @@ public class Spice86DataImportTask extends Spice86Task {
       changes |= hasChanges(context, splits, currentSplits, pass, "Split");
       splits = currentSplits;
 
-      // Handle orphans
-      logAndMonitorPass(context, pass, "Recreating functions with potential orphans");
-      int currentFunctionsWithOrphans = orphanedInstructionsScanner.attemptReattachOrphans();
-      changes |= hasChanges(context, functionsWithOrphans, currentFunctionsWithOrphans, pass, "Orphan finder");
-      functionsWithOrphans = currentFunctionsWithOrphans;
-      if (!changes && currentFunctionsWithOrphans != 0) {
-        logAndMonitorPass(context, pass, "There are still orphans, recreating the functions directly.");
-        // No changes, but still orphans => let's create functions at orphans address ranges (this is a last resort solution but we need all instructions attached to a function)
-        int currentOrphanRangesConvertedToFunctions = orphanedInstructionsScanner.createFunctionsForOrphanRanges();
-        changes |= hasChanges(context, orphanRangesConvertedToFunctions, currentOrphanRangesConvertedToFunctions, pass,
-            "Remaining Orphan ranges to functions");
-        orphanRangesConvertedToFunctions = currentOrphanRangesConvertedToFunctions;
+      if (includeOrphans) {
+        // Handle orphans
+        logAndMonitorPass(context, pass, "Recreating functions with potential orphans");
+        int currentFunctionsWithOrphans = orphanedInstructionsScanner.attemptReattachOrphans();
+        changes |= hasChanges(context, functionsWithOrphans, currentFunctionsWithOrphans, pass, "Orphan finder");
+        functionsWithOrphans = currentFunctionsWithOrphans;
+        if (!changes && currentFunctionsWithOrphans != 0) {
+          logAndMonitorPass(context, pass, "There are still orphans, recreating the functions directly.");
+          // No changes, but still orphans => let's create functions at orphans address ranges (this is a last resort solution but we need all instructions attached to a function)
+          int currentOrphanRangesConvertedToFunctions = orphanedInstructionsScanner.createFunctionsForOrphanRanges();
+          changes |=
+              hasChanges(context, orphanRangesConvertedToFunctions, currentOrphanRangesConvertedToFunctions, pass,
+                  "Remaining Orphan ranges to functions");
+          orphanRangesConvertedToFunctions = currentOrphanRangesConvertedToFunctions;
+        }
       }
     } while (changes);
   }

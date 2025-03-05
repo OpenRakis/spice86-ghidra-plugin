@@ -93,7 +93,7 @@ public class ParsedProgramBuilder extends ObjectWithContextAndLog {
         List<String> addressExpressions = entry.getValue();
         for (String addressExpression : addressExpressions) {
           SegmentedAddress segmentedAddress = toSegmentedAddress(codeSegmentVariables, addressExpression);
-          List<String> codeList = codeToInjectReversed.computeIfAbsent(segmentedAddress, a -> new ArrayList());
+          List<String> codeList = codeToInjectReversed.computeIfAbsent(segmentedAddress, a -> new ArrayList<>());
           codeList.add(code);
         }
       }
@@ -118,7 +118,7 @@ public class ParsedProgramBuilder extends ObjectWithContextAndLog {
       String addressExpression) {
     String[] split = addressExpression.split(":");
     Integer segment = getSegmentValue(codeSegmentVariables, split[0]);
-    Integer offset = Utils.parseHex16(split[1]);
+    int offset = Utils.parseHex16(split[1]);
     return new SegmentedAddress(segment, offset);
   }
 
@@ -176,7 +176,7 @@ public class ParsedProgramBuilder extends ObjectWithContextAndLog {
     res.possibleInstructionByteValues = executionFlow.getExecutableAddressWrittenBy()
         .entrySet()
         .stream()
-        .collect(Collectors.toMap(e -> e.getKey(), e -> getPossibleInstructionByteValues(e.getValue())));
+        .collect(Collectors.toMap(Map.Entry::getKey, e -> getPossibleInstructionByteValues(e.getValue())));
   }
 
   private void registerModifiedInstructions(ExecutionFlow executionFlow, ParsedProgram res) {

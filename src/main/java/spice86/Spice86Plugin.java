@@ -23,7 +23,7 @@ import javax.swing.ImageIcon;
 @PluginInfo(
     status = PluginStatus.RELEASED,
     packageName = DeveloperPluginPackage.NAME,
-    category = PluginCategoryNames.MISC,
+    category = PluginCategoryNames.ANALYSIS,
     shortDescription = "Spice86 Ghidra integration",
     description = "Imports data from Spice86 and generates C#",
     servicesRequired = { ProgramManager.class }
@@ -34,7 +34,7 @@ public class Spice86Plugin extends ProgramPlugin {
   private DockingAction generateCSharpAction;
 
   public Spice86Plugin(PluginTool tool) {
-    super(tool, false, false);
+    super(tool);
   }
 
   @Override
