@@ -55,9 +55,28 @@ class EntryPointDisassembler extends ObjectWithContextAndLog {
       log.info("No need to disassemble " + address);
       return;
     }
+
+    // Clear any existing data or conflicting functions at this address
+    ghidra.program.model.listing.CodeUnit cu = program.getListing().getCodeUnitAt(address);
+    if (cu != null && !(cu instanceof ghidra.program.model.listing.Instruction)) {
+      log.info("Clearing existing data at " + address + " to allow disassembly");
+      program.getListing().clearCodeUnits(address, address, false);
+    }
+
+    // Check for overlapping functions that aren't starting here
+    ghidra.program.model.listing.Function overlapping = program.getListing().getFunctionContaining(address);
+    if (overlapping != null && !overlapping.getEntryPoint().equals(address)) {
+      log.info("Address " + address + " is inside function " + overlapping.getName() + ". Clearing that function to allow new function creation.");
+      program.getFunctionManager().removeFunction(overlapping.getEntryPoint());
+    }
+
     DisassembleCommand disassembleCommand = new DisassembleCommand(address, null, true);
     boolean result = disassembleCommand.applyTo(program, taskMonitor);
-    log.info("Disassembly status for " + address + ": " + (result ? "success" : "failure"));
+    if (!result) {
+      log.warning("Disassembly failed for " + address + ": " + disassembleCommand.getStatusMsg());
+    } else {
+      log.info("Disassembly successful for " + address);
+    }
   }
 
   public void decompileAllFunctions() throws Exception {

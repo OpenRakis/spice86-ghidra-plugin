@@ -161,13 +161,22 @@ public class ParsedInstructionBuilder extends ObjectWithContextAndLog {
       res.parameter1Offset = bytesReader.getIndex();
       res.parameter1 = bytesReader.nextUint8();
       res.parameter1Signed = Utils.int8(res.parameter1);
+      if (res.parameter1BitLength == null) {
+        res.parameter1BitLength = 8;
+      }
     } else if (remainingLength == 2) {
       res.parameter1Offset = bytesReader.getIndex();
       res.parameter1 = bytesReader.nextUint16();
       res.parameter1Signed = Utils.int16(res.parameter1);
+      if (res.parameter1BitLength == null) {
+        res.parameter1BitLength = 16;
+      }
     } else if (remainingLength == 4) {
       res.parameter1Offset = bytesReader.getIndex();
       res.parameter1 = bytesReader.nextUint16();
+      if (res.parameter1BitLength == null) {
+        res.parameter1BitLength = 16;
+      }
       res.parameter2Offset = bytesReader.getIndex();
       res.parameter2 = bytesReader.nextUint16();
       if (opCode == 0x83) {
@@ -175,6 +184,9 @@ public class ParsedInstructionBuilder extends ObjectWithContextAndLog {
         res.parameter2BitLength = 8;
       } else {
         res.parameter2BitLength = res.parameter1BitLength;
+      }
+      if (res.parameter2BitLength == null) {
+        res.parameter2BitLength = 16;
       }
     } else {
       log.warning("Found " + remainingLength + " trailing bytes, not supported.");
@@ -223,7 +235,7 @@ public class ParsedInstructionBuilder extends ObjectWithContextAndLog {
   private boolean isParameterModified(ParsedInstruction parsedInstruction,
       Map<Integer, Set<Integer>> possibleInstructionByteValues, Integer parameter,
       Integer parameterBitLength, Integer parameterOffset) {
-    if (parameter == null) {
+    if (parameter == null || parameterBitLength == null || parameterOffset == null) {
       // No parameter, nothing to check
       return false;
     }

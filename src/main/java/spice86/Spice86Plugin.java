@@ -22,7 +22,7 @@ import javax.swing.ImageIcon;
 //@formatter:off
 @PluginInfo(
     status = PluginStatus.RELEASED,
-    packageName = DeveloperPluginPackage.NAME,
+    packageName = "Spice86",
     category = PluginCategoryNames.ANALYSIS,
     shortDescription = "Spice86 Ghidra integration",
     description = "Imports data from Spice86 and generates C#",
@@ -35,11 +35,13 @@ public class Spice86Plugin extends ProgramPlugin {
 
   public Spice86Plugin(PluginTool tool) {
     super(tool);
+    ghidra.util.Msg.info(this, "Spice86Plugin constructor called");
   }
 
   @Override
   protected void init() {
     super.init();
+    ghidra.util.Msg.info(this, "Spice86Plugin init called - Build 2025-12-22-12-50");
     importAction = createAction("Import Action", "/images/re.png", "Import runtime data", this::importData);
     tool.addAction(importAction);
     generateCSharpAction =
@@ -72,7 +74,7 @@ public class Spice86Plugin extends ProgramPlugin {
     }
   }
 
-  private DockingAction createAction(String name, String image, String subMenu, Runnable action) {
+   private DockingAction createAction(String name, String image, String subMenu, Runnable action) {
     DockingAction res = new DockingAction(name, getName()) {
       @Override
       public void actionPerformed(ActionContext context) {
@@ -81,7 +83,13 @@ public class Spice86Plugin extends ProgramPlugin {
     };
     res.setEnabled(true);
     // Put the action in the global "Spice86" menu.
-    ImageIcon icon = new ImageIcon(getClass().getResource(image));
+    java.net.URL imageUrl = getClass().getResource(image);
+    ImageIcon icon = null;
+    if (imageUrl != null) {
+      icon = new ImageIcon(imageUrl);
+    } else {
+      ghidra.util.Msg.error(this, "Could not find icon resource: " + image);
+    }
     res.setMenuBarData(new MenuData(new String[] { "Spice86", subMenu }, icon));
     return res;
   }

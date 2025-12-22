@@ -47,17 +47,17 @@ public class Spice86DataImportTask extends Spice86Task {
     LabelManager labelManager = new LabelManager(context);
 
     FunctionCreator functionCreator = new FunctionCreator(context, labelManager);
+    EntryPointDisassembler entryPointDisassembler = new EntryPointDisassembler(context);
+
+    logAndMonitor(context, "Disassembling entry points from execution flow and recorded functions");
+    entryPointDisassembler.disassembleEntryPoints(executionFlow, functions);
 
     logAndMonitor(context, "Importing function symbols");
     new FunctionImporter(context, functionCreator).importFunctions(functions);
 
-    logAndMonitor(context, "Importing execution flow");
-    EntryPointDisassembler entryPointDisassembler = new EntryPointDisassembler(context);
+    logAndMonitor(context, "Importing execution flow references");
     ReferencesImporter referencesImporter = new ReferencesImporter(context, labelManager, entryPointDisassembler);
     referencesImporter.importReferences(executionFlow);
-
-    logAndMonitor(context, "Disassembling entry points from execution flow");
-    entryPointDisassembler.disassembleEntryPoints(executionFlow, functions);
 
     disassembleAndOrganize(context, entryPointDisassembler, functionCreator);
     program.endTransaction(transactionId, true);

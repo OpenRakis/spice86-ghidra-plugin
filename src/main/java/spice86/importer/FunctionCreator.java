@@ -34,10 +34,10 @@ class FunctionCreator extends ObjectWithContextAndLog {
   }
 
   public void removeFunctionAt(Address address) {
-    Function function = program.getListing().getFunctionAt(address);
+    Function function = program.getListing().getFunctionContaining(address);
     if (function != null) {
-      log.info("Found function " + function.getName() + " at address " + address + ". Deleting it.");
-      new DeleteFunctionCmd(function.getEntryPoint()).applyTo(this.program);
+      log.info("Found function " + function.getName() + " containing address " + address + ". Deleting it.");
+      program.getFunctionManager().removeFunction(function.getEntryPoint());
     }
   }
 
@@ -52,25 +52,86 @@ class FunctionCreator extends ObjectWithContextAndLog {
   }
 
   public void createOrUpdateFunction(String name, Address entryPoint) {
-    boolean existing = program.getListing().getFunctionAt(entryPoint) != null;
-    if (existing) {
-      log.info("Re-creating function at address " + entryPoint + " with name " + name);
-    } else {
-      log.info("Creating function at address " + entryPoint + " with name " + name);
+    ghidra.program.model.listing.CodeUnit cu = program.getListing().getCodeUnitAt(entryPoint);
+    String cuType = cu == null ? "null" : cu.getClass().getSimpleName();
+    log.info("Creating function at " + entryPoint + " (" + name + "). CodeUnit at address: " + cuType);
+
+    // Ensure the memory block is executable
+    ghidra.program.model.mem.MemoryBlock block = program.getMemory().getBlock(entryPoint);
+    if (block != null && !block.isExecute()) {
+      log.info("Memory block " + block.getName() + " is not executable. Setting execute permission.");
+      block.setExecute(true);
     }
-    if (!runCreateFunctionCommand(entryPoint, name, existing)) {
-      throw new RuntimeException("Failed to create function at " + entryPoint);
+    
+    // Check if the address is valid and has code. If not, create a memory block for it.
+    if (!program.getMemory().contains(entryPoint)) {
+      log.info("Address " + entryPoint + " is not in memory. Attempting to create a missing segment.");
+      try {
+        long offset = entryPoint.getOffset();
+        // Assuming real mode segment: align to 64k
+        long segmentStart = (offset / 0x10000) * 0x10000;
+        Address start = entryPoint.getNewAddress(segmentStart);
+        String blockName = "spice86_auto_segment_" + Long.toHexString(segmentStart);
+        program.getMemory().createUninitializedBlock(blockName, start, 0x10000, false);
+        log.info("Created missing memory block: " + blockName + " at " + start);
+      } catch (Exception e) {
+        String errorMsg = "Failed to create missing memory block at " + entryPoint + ": " + e.getMessage();
+        log.error(errorMsg);
+        throw new RuntimeException(errorMsg);
+      }
+    }
+    
+    String errorMessage = runCreateFunctionCommand(entryPoint, name, program.getListing().getFunctionAt(entryPoint) != null);
+    if (errorMessage != null) {
+      // Final desperate attempt: use listing directly
+      try {
+        log.info("CreateFunctionCmd failed. Attempting direct listing.createFunction at " + entryPoint);
+        program.getListing().createFunction(name, entryPoint, new AddressSet(entryPoint), SourceType.USER_DEFINED);
+        markFunctionAsReturning(entryPoint);
+        return;
+      } catch (Exception e) {
+        String fullErrorMsg = "Failed to create function at " + entryPoint + ": " + errorMessage + ". Direct attempt also failed: " + e.getMessage();
+        log.error(fullErrorMsg);
+        throw new RuntimeException(fullErrorMsg);
+      }
     }
     markFunctionAsReturning(entryPoint);
   }
 
   private void markFunctionAsReturning(Address entryPoint) {
     Function function = program.getListing().getFunctionAt(entryPoint);
-    function.setNoReturn(false);
+    if (function != null) {
+      function.setNoReturn(false);
+    }
   }
 
-  private boolean runCreateFunctionCommand(Address entryPoint, String name, boolean recreate) {
+  private String runCreateFunctionCommand(Address entryPoint, String name, boolean recreate) {
+    // First attempt: Let Ghidra find the body (traditional way)
     CreateFunctionCmd cmd = new CreateFunctionCmd(name, entryPoint, null, SourceType.USER_DEFINED, false, recreate);
-    return cmd.applyTo(program, taskMonitor);
+    boolean success = cmd.applyTo(program, taskMonitor);
+    if (success) {
+      return null;
+    }
+
+    String statusMsg = cmd.getStatusMsg();
+    log.warning("Initial function creation failed at " + entryPoint + ": " + statusMsg + ". Trying fallback with minimal body.");
+
+    // Fallback: Create function with a 1-instruction body
+    ghidra.program.model.listing.Instruction ins = program.getListing().getInstructionAt(entryPoint);
+    if (ins != null) {
+      try {
+        AddressSet body = new AddressSet(entryPoint, entryPoint.add(ins.getLength() - 1));
+        CreateFunctionCmd fallbackCmd = new CreateFunctionCmd(name, entryPoint, body, SourceType.USER_DEFINED, false, true);
+        if (fallbackCmd.applyTo(program, taskMonitor)) {
+          log.info("Successfully created function at " + entryPoint + " using minimal body fallback.");
+          return null;
+        }
+        return fallbackCmd.getStatusMsg();
+      } catch (ghidra.program.model.address.AddressOutOfBoundsException e) {
+        return "Address out of bounds during fallback body creation";
+      }
+    } else {
+        return statusMsg != null ? statusMsg : "No instruction at entry point and initial command failed";
+    }
   }
 }
