@@ -68,12 +68,13 @@ class FunctionCreator extends ObjectWithContextAndLog {
       log.info("Address " + entryPoint + " is not in memory. Attempting to create a missing segment.");
       try {
         long offset = entryPoint.getOffset();
-        // Assuming real mode segment: align to 64k
-        long segmentStart = (offset / 0x10000) * 0x10000;
+        // Align to paragraph (16 bytes) which is standard for x86 real mode segments
+        long segmentStart = (offset / 0x10) * 0x10;
         Address start = entryPoint.getNewAddress(segmentStart);
         String blockName = "spice86_auto_segment_" + Long.toHexString(segmentStart);
-        program.getMemory().createUninitializedBlock(blockName, start, 0x10000, false);
-        log.info("Created missing memory block: " + blockName + " at " + start);
+        // Create a smaller 4KB block instead of 64KB to be less invasive
+        program.getMemory().createUninitializedBlock(blockName, start, 0x1000, false);
+        log.info("Created missing memory block (paragraph aligned): " + blockName + " at " + start);
       } catch (Exception e) {
         String errorMsg = "Failed to create missing memory block at " + entryPoint + ": " + e.getMessage();
         log.error(errorMsg);
