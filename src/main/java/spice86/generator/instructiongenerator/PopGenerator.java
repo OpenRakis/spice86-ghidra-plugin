@@ -27,7 +27,8 @@ public class PopGenerator {
   }
 
   public String generatePopFlags(Integer bits) {
-    return generatePopToExpression("FlagRegister" + bits, bits);
+    String register = bits == 16 ? "Flags" : "EFlags";
+    return generatePopToExpression(register, bits);
   }
 
   private String generatePopToGhidraExpression(String register, Integer bits) {

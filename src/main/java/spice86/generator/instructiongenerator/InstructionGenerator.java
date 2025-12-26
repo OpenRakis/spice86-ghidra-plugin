@@ -170,14 +170,14 @@ public class InstructionGenerator {
     if (canUseNativeOperation()) {
       return dest + nativeOperation + ";";
     }
-    return parameterTranslator.generateAssignment(dest, operation + bits + "(" + dest + ")");
+    return parameterTranslator.generateAssignment(dest, "Alu" + bits + "." + operation + "(" + dest + ")");
   }
 
   private String generateAssignmentWith2ParametersOnlyOneOperand(String operation, String[] parameters,
       Integer bits) {
     String dest = parameterTranslator.toSpice86Value(parameters[0], bits);
     String operand = parameterTranslator.toSpice86Value(parameters[1], bits);
-    return parameterTranslator.generateAssignment(dest, operation + bits + "(" + operand + ")");
+    return parameterTranslator.generateAssignment(dest, "Alu" + bits + "." + operation + "(" + operand + ")");
   }
 
   private String generateXor(String[] parameters) {
@@ -187,7 +187,7 @@ public class InstructionGenerator {
       String dest = parameterTranslator.toSpice86Value(parameters[0], bits);
       return parameterTranslator.generateAssignment(dest, "0");
     }
-    return generateAssignmentWith2Parameters("Alu.Xor", "^", parameters);
+    return generateAssignmentWith2Parameters("Xor", "^", parameters);
   }
 
   private String generateAssignmentWith2Parameters(String operation, String nativeOperation, String[] parameters) {
@@ -202,7 +202,7 @@ public class InstructionGenerator {
       }
       res += "// " + resNativeOperation + '\n';
     }
-    res += parameterTranslator.generateAssignment(dest, operation + bitsParameter1 + "(" + dest + ", " + operand + ")");
+    res += parameterTranslator.generateAssignment(dest, "Alu" + bitsParameter1 + "." + operation + "(" + dest + ", " + operand + ")");
     return res;
   }
 
@@ -210,7 +210,7 @@ public class InstructionGenerator {
     Integer bitsParameter1 = parsedInstruction.getParameter1BitLength();
     String dest = parameterTranslator.toSpice86Value(parameters[0], bitsParameter1);
     String operand = signExtendParameter2IfNeeded(parameters);
-    return operation + bitsParameter1 + "(" + dest + ", " + operand + ");";
+    return "Alu" + bitsParameter1 + "." + operation + "(" + dest + ", " + operand + ");";
   }
 
   private String signExtendParameter2IfNeeded(String[] parameters) {
@@ -242,20 +242,20 @@ public class InstructionGenerator {
 
   private String generateIns(String[] parameters, int bits) {
     String destination = getDestination(parameters, bits);
-    String operation = parameterTranslator.generateAssignment(destination, "Cpu.In" + bits + "(DX)");
+    String operation = parameterTranslator.generateAssignment(destination, "In" + bits + "(DX)");
     return generateStringOperation(operation, false, true, bits);
   }
 
   private String generateOuts(String[] parameters, int bits) {
     String source = getSource(parameters, bits);
-    String operation = "Cpu.Out" + bits + "(DX, " + source + ");";
+    String operation = "Out" + bits + "(DX, " + source + ");";
     return generateStringOperation(operation, true, false, bits);
   }
 
   private String generateScas(String[] parameters, int bits) {
     String param1 = getAXOrAL(bits);
     String param2 = getDestination(parameters, bits);
-    String operation = "Alu.Sub" + bits + "(" + param1 + ", " + param2 + ");";
+    String operation = "Alu" + bits + ".Sub(" + param1 + ", " + param2 + ");";
     return generateStringOperation(operation, false, true, bits);
   }
 
@@ -276,7 +276,7 @@ public class InstructionGenerator {
   private String generateCmps(String[] parameters, int bits) {
     String param1 = getSource(parameters, bits);
     String param2 = getDestination(parameters, bits);
-    String operation = "Alu.Sub" + bits + "(" + param1 + ", " + param2 + ");";
+    String operation = "Alu" + bits + ".Sub(" + param1 + ", " + param2 + ");";
     return generateStringOperation(operation, true, true, bits);
   }
 
@@ -331,7 +331,7 @@ public class InstructionGenerator {
 
   private String generateNeg(String[] parameters, Integer bits) {
     String parameter = parameterTranslator.toSpice86Value(parameters[0], bits);
-    return parameterTranslator.generateAssignment(parameter, "Alu.Sub" + bits + "(0, " + parameter + ")");
+    return parameterTranslator.generateAssignment(parameter, "Alu" + bits + ".Sub(0, " + parameter + ")");
   }
 
   private String generateLXS(String segmentRegister, String[] parameters) {
@@ -384,7 +384,7 @@ public class InstructionGenerator {
       String operand1 = parameterTranslator.toSpice86Value(parameters[1], bits);
       String operand2 = parameterTranslator.toSpice86Value(parameters[2], bits);
       return parameterTranslator.generateAssignment(destination,
-          parameterTranslator.castToUnsignedInt("Alu.Imul" + bits + "(" + operand1 + ", " + operand2 + ")", bits));
+          parameterTranslator.castToUnsignedInt("Alu" + bits + ".Imul(" + operand1 + ", " + operand2 + ")", bits));
     }
     // Regular grp3 imul
     return generateGrp3ImulMul(true, bits, "Imul", parameters[0]);
@@ -399,7 +399,7 @@ public class InstructionGenerator {
     int resBits = bits * 2;
     String resType = signed ? parameterTranslator.toSignedType(resBits) : parameterTranslator.toUnsignedType(resBits);
     String operation = parameterTranslator.generateAssignmentWithType(resType, tempVar,
-        "Alu." + aluOperation + bits + "(" + opSignCast + opRes1 + ", " + opSignCast + op2
+        "Alu" + bits + "." + aluOperation + "(" + opSignCast + opRes1 + ", " + opSignCast + op2
             + ")");
     String operationAssignment1 =
         parameterTranslator.generateAssignment(opRes1, parameterTranslator.castToUnsignedInt(tempVar, bits));
@@ -426,7 +426,7 @@ public class InstructionGenerator {
     String operationResultType = op2Type + "?";
     String operationResultVar = parameterTranslator.generateTempVar("res" + aluOperation);
     String operationAssignment = parameterTranslator.generateAssignmentWithType(operationResultType, operationResultVar,
-        "Alu." + aluOperation + bits + "(" + op1Var + ", " + op2Var
+        "Alu" + bits + "." + aluOperation + "(" + op1Var + ", " + op2Var
             + ")");
 
     String nullCheckAssignment =
@@ -649,11 +649,11 @@ public class InstructionGenerator {
   }
 
   private String generateIncStatic(String[] parameters, Integer bits) {
-    return generateAssignmentWith1Parameter("Alu.Inc", "++", parameters, bits);
+    return generateAssignmentWith1Parameter("Inc", "++", parameters, bits);
   }
 
   private String generateDecStatic(String[] parameters, Integer bits) {
-    return generateAssignmentWith1Parameter("Alu.Dec", "--", parameters, bits);
+    return generateAssignmentWith1Parameter("Dec", "--", parameters, bits);
   }
 
   private String generateInc(String[] parameters, Integer bits) {
@@ -674,13 +674,13 @@ public class InstructionGenerator {
     log.info("Params are " + String.join(",", params));
     Integer parameter1Bits = parsedInstruction.getParameter1BitLength();
     return switch (mnemonic) {
-      case "AAA" -> "Cpu.Aaa();";
-      case "AAD" -> "Cpu.Aad(" + parameterTranslator.toSpice86Value(params[0], parameter1Bits) + ");";
-      case "AAM" -> "Cpu.Aam(" + parameterTranslator.toSpice86Value(params[0], parameter1Bits) + ");";
-      case "AAS" -> "Cpu.Aas();";
-      case "ADC" -> generateAssignmentWith2Parameters("Alu.Adc", null, params);
-      case "ADD" -> generateAssignmentWith2Parameters("Alu.Add", "+", params);
-      case "AND" -> generateAssignmentWith2Parameters("Alu.And", "&", params);
+      case "AAA" -> "Aaa();";
+      case "AAD" -> "Aad(" + parameterTranslator.toSpice86Value(params[0], parameter1Bits) + ");";
+      case "AAM" -> "Aam(" + parameterTranslator.toSpice86Value(params[0], parameter1Bits) + ");";
+      case "AAS" -> "Aas();";
+      case "ADC" -> generateAssignmentWith2Parameters("Adc", null, params);
+      case "ADD" -> generateAssignmentWith2Parameters("Add", "+", params);
+      case "AND" -> generateAssignmentWith2Parameters("And", "&", params);
       case "CALL" -> jumpCallTranslator.generateCall(params[0], false);
       case "CALLF" -> jumpCallTranslator.generateCall(params[0], true);
       case "CBW" -> generateCbw();
@@ -688,18 +688,18 @@ public class InstructionGenerator {
       case "CLD" -> "DirectionFlag = false;";
       case "CLI" -> "InterruptFlag = false;";
       case "CMC" -> "CarryFlag = !CarryFlag;";
-      case "CMP" -> generateNoAssignmentWith2Parameters("Alu.Sub", params);
+      case "CMP" -> generateNoAssignmentWith2Parameters("Sub", params);
       case "CMPSB" -> generateCmps(params, 8);
       case "CMPSW" -> generateCmps(params, 16);
       case "CWD" -> generateCwd();
-      case "DAS" -> "Cpu.Das();";
-      case "DAA" -> "Cpu.Daa();";
+      case "DAS" -> "Das();";
+      case "DAA" -> "Daa();";
       case "DEC" -> generateDec(params, parameter1Bits);
       case "DIV" -> generateDiv(params, parameter1Bits);
       case "HLT" -> "return Hlt();";
       case "IDIV" -> generateIDiv(params, parameter1Bits);
       case "IMUL" -> generateIMul(params, parameter1Bits);
-      case "IN" -> generateAssignmentWith2ParametersOnlyOneOperand("Cpu.In", params, parameter1Bits);
+      case "IN" -> generateAssignmentWith2ParametersOnlyOneOperand("In", params, parameter1Bits);
       case "INC" -> generateInc(params, parameter1Bits);
       case "INSB", "INSW" -> generateIns(params, parameter1Bits);
       case "INT" -> generateInterrupt(params[0]);
@@ -724,7 +724,7 @@ public class InstructionGenerator {
       case "JS" -> generateConditionalJump("S", params, false);
       case "JP" -> generateConditionalJump("P", params, false);
       case "JZ" -> generateConditionalJump("Z", params, false);
-      case "LAHF" -> "AH = (byte)FlagRegister16;";
+      case "LAHF" -> "AH = (byte)Flags;";
       case "LDS" -> generateLXS("DS", params);
       case "LEA" -> generateLea(params);
       case "LES" -> generateLXS("ES", params);
@@ -740,8 +740,8 @@ public class InstructionGenerator {
       case "MUL" -> generateMul(params, parameter1Bits);
       case "NEG" -> generateNeg(params, parameter1Bits);
       case "NOT" -> generateNot(params, parameter1Bits);
-      case "OR" -> generateAssignmentWith2Parameters("Alu.Or", "|", params);
-      case "OUT" -> generateNoAssignmentWith2Parameters("Cpu.Out", params);
+      case "OR" -> generateAssignmentWith2Parameters("Or", "|", params);
+      case "OUT" -> generateNoAssignmentWith2Parameters("Out", params);
       case "OUTSB", "OUTSW" -> generateOuts(params, parameter1Bits);
       case "POP" -> popGenerator.generatePop(params, parameter1Bits);
       case "POPA" -> popGenerator.generatePopAll(parameter1Bits);
@@ -749,26 +749,26 @@ public class InstructionGenerator {
       case "PUSH" -> pushGenerator.generatePush(params, parameter1Bits);
       case "PUSHA" -> pushGenerator.generatePushAll(parameter1Bits);
       case "PUSHF" -> pushGenerator.generatePushFlags(parameter1Bits);
-      case "RCL" -> generateAssignmentWith2Parameters("Alu.Rcl", null, params);
-      case "RCR" -> generateAssignmentWith2Parameters("Alu.Rcr", null, params);
+      case "RCL" -> generateAssignmentWith2Parameters("Rcl", null, params);
+      case "RCR" -> generateAssignmentWith2Parameters("Rcr", null, params);
       case "RET" -> generateRetNear(params);
       case "RETF" -> generateRetFar(params);
-      case "ROL" -> generateAssignmentWith2Parameters("Alu.Rol", null, params);
-      case "ROR" -> generateAssignmentWith2Parameters("Alu.Ror", null, params);
-      case "SAHF" -> "FlagRegister16 = AH;";
-      case "SAR" -> generateAssignmentWith2Parameters("Alu.Sar", null, params);
-      case "SBB" -> generateAssignmentWith2Parameters("Alu.Sbb", null, params);
+      case "ROL" -> generateAssignmentWith2Parameters("Rol", null, params);
+      case "ROR" -> generateAssignmentWith2Parameters("Ror", null, params);
+      case "SAHF" -> "Flags = AH;";
+      case "SAR" -> generateAssignmentWith2Parameters("Sar", null, params);
+      case "SBB" -> generateAssignmentWith2Parameters("Sbb", null, params);
       case "SCASB" -> generateScas(params, 8);
       case "SCASW" -> generateScas(params, 16);
-      case "SHL" -> generateAssignmentWith2Parameters("Alu.Shl", "<<", params);
-      case "SHR" -> generateAssignmentWith2Parameters("Alu.Shr", ">>", params);
+      case "SHL" -> generateAssignmentWith2Parameters("Shl", "<<", params);
+      case "SHR" -> generateAssignmentWith2Parameters("Shr", ">>", params);
       case "STC" -> "CarryFlag = true;";
       case "STD" -> "DirectionFlag = true;";
       case "STI" -> "InterruptFlag = true;";
       case "STOSB" -> generateStos(params, 8);
       case "STOSW" -> generateStos(params, 16);
-      case "SUB" -> generateAssignmentWith2Parameters("Alu.Sub", "-", params);
-      case "TEST" -> generateNoAssignmentWith2Parameters("Alu.And", params);
+      case "SUB" -> generateAssignmentWith2Parameters("Sub", "-", params);
+      case "TEST" -> generateNoAssignmentWith2Parameters("And", params);
       case "XCHG" -> generateXchg(params, parameter1Bits);
       case "XLAT" -> generateXlat();
       case "XOR" -> generateXor(params);

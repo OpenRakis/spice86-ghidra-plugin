@@ -38,7 +38,8 @@ public class PushGenerator {
   }
 
   public String generatePushFlags(Integer bits) {
-    return generatePushToExpression("FlagRegister" + bits, bits);
+    String register = bits == 16 ? "Flags" : "EFlags";
+    return generatePushToExpression(register, bits);
   }
 
   private String generatePushToExpression(String value, Integer bits) {
