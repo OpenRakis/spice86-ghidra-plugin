@@ -38,7 +38,6 @@ public class ProgramGenerator {
     fileContent.append(Utils.indent(generateConstructor(), 2));
     Collection<ParsedFunction> parsedFunctions = parsedProgram.getEntryPoints().values();
     fileContent.append(Utils.indent(generateOverrideDefinitionFunction(parsedFunctions), 2) + "\n");
-    fileContent.append(Utils.indent(generateCodeRewriteDetector(), 2));
     fileContent.append('\n');
     Iterator<String> functionInterator = generateFunctions(parsedFunctions).iterator();
     if (!functionInterator.hasNext()) {
@@ -74,7 +73,12 @@ public class ProgramGenerator {
   }
 
   private String generateImports() {
-    return "";
+    return "using System.Collections.Generic;\n" +
+           "using Spice86.Core.CLI;\n" +
+           "using Spice86.Core.Emulator.Function;\n" +
+           "using Spice86.Core.Emulator.VM;\n" +
+           "using Spice86.Shared.Interfaces;\n" +
+           "using Spice86.Shared.Emulator.Memory;\n\n";
   }
 
   private String generateClassDeclaration() {
@@ -83,13 +87,12 @@ public class ProgramGenerator {
 
   private String generateConstructor() {
     String res =
-        "public GeneratedOverrides(Dictionary<SegmentedAddress, FunctionInformation> functionInformations, Machine machine, ushort entrySegment = "
+        "public GeneratedOverrides(Configuration configuration, Dictionary<SegmentedAddress, FunctionInformation> functionInformations, Machine machine, ILoggerService loggerService, ushort entrySegment = "
             + Utils.toHexWith0X(parsedProgram.getCs1Physical() / 0x10)
-            + ") : base(functionInformations, machine) {\n";
+            + ") : base(functionInformations, machine, loggerService, configuration) {\n";
     res += Utils.indent(generateSegmentConstructorAssignment(), 2);
     res += '\n';
     res += "  DefineGeneratedCodeOverrides();\n";
-    res += "  DetectCodeRewrites();\n";
     res += "  SetProvidedInterruptHandlersAsOverridden();\n";
     res += "}\n\n";
     return res;
@@ -147,32 +150,6 @@ public class ProgramGenerator {
       list.add(funcStr);
     }
     return list;
-  }
-
-  private String generateCodeRewriteDetector() {
-    StringBuilder res = new StringBuilder("public void DetectCodeRewrites() {\n");
-    List<Integer> codeAddresses = parsedProgram.getInstructionAddresses().stream().sorted().toList();
-    if (!codeAddresses.isEmpty()) {
-      int rangeStart = codeAddresses.get(0);
-      for (int i = 0; i < codeAddresses.size(); i++) {
-        int currentAddress = codeAddresses.get(i);
-        int currentInstructionLength = parsedProgram.getInstructionAtAddress(currentAddress).getInstructionLength();
-        if (i == codeAddresses.size() - 1) {
-          // Last instruction
-          res.append(defineExecutableArea(rangeStart, currentAddress + currentInstructionLength - 1));
-        } else {
-          int actualNextAddress = codeAddresses.get(i + 1);
-          int expectedNextAddress = currentAddress + currentInstructionLength;
-          if (expectedNextAddress != actualNextAddress) {
-            // end of range
-            res.append(defineExecutableArea(rangeStart, expectedNextAddress - 1));
-            rangeStart = actualNextAddress;
-          }
-        }
-      }
-    }
-    res.append("}\n\n");
-    return res.toString();
   }
 
   private String defineExecutableArea(int rangeStart, int rangeEnd) {
