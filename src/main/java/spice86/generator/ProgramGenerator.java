@@ -74,7 +74,10 @@ public class ProgramGenerator {
   }
 
   private String generateImports() {
-    return "";
+    return "using Spice86.Core.CLI;\n"
+        + "using Spice86.Core.Emulator.CPU.InstructionsImpl;\n"
+        + "using Spice86.Shared.Emulator.Memory;\n"
+        + "using Spice86.Shared.Interfaces;\n\n";
   }
 
   private String generateClassDeclaration() {
@@ -83,13 +86,15 @@ public class ProgramGenerator {
 
   private String generateConstructor() {
     String res =
-        "public GeneratedOverrides(Dictionary<SegmentedAddress, FunctionInformation> functionInformations, Machine machine, ushort entrySegment = "
+        "public GeneratedOverrides(Configuration configuration,\n"
+            + "    IDictionary<SegmentedAddress, FunctionInformation> functionInformations,\n"
+            + "    Machine machine, ILoggerService loggerService, ushort entrySegment = "
             + Utils.toHexWith0X(parsedProgram.getCs1Physical() / 0x10)
-            + ") : base(functionInformations, machine) {\n";
+            + ")\n"
+            + "      : base(functionInformations, machine, loggerService, configuration) {\n";
     res += Utils.indent(generateSegmentConstructorAssignment(), 2);
     res += '\n';
     res += "  DefineGeneratedCodeOverrides();\n";
-    res += "  DetectCodeRewrites();\n";
     res += "  SetProvidedInterruptHandlersAsOverridden();\n";
     res += "}\n\n";
     return res;
@@ -176,6 +181,6 @@ public class ProgramGenerator {
   }
 
   private String defineExecutableArea(int rangeStart, int rangeEnd) {
-    return "  DefineExecutableArea(" + Utils.toHexWith0X(rangeStart) + ", " + Utils.toHexWith0X(rangeEnd) + ");\n";
+    return ""; // removed
   }
 }

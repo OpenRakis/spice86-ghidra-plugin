@@ -223,8 +223,8 @@ public class ParsedInstructionBuilder extends ObjectWithContextAndLog {
   private boolean isParameterModified(ParsedInstruction parsedInstruction,
       Map<Integer, Set<Integer>> possibleInstructionByteValues, Integer parameter,
       Integer parameterBitLength, Integer parameterOffset) {
-    if (parameter == null) {
-      // No parameter, nothing to check
+    if (parameter == null || parameterBitLength == null) {
+      // No parameter or unknown bit length, nothing to check
       return false;
     }
     int physicalAddress = parsedInstruction.instructionSegmentedAddress.toPhysical();

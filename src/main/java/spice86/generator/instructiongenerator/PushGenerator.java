@@ -31,10 +31,12 @@ public class PushGenerator {
 
   public String generatePush(String[] ghidraParams, Integer bits) {
     String expression = parameterTranslator.toSpice86Value(ghidraParams[0], bits);
+    int pushBits = bits;
     if (parsedInstruction.getParameter1BitLength() == 8) {
-      expression = parameterTranslator.signExtendByteToUInt(expression, parsedInstruction.getInstructionBitLength());
+      pushBits = parsedInstruction.getInstructionBitLength();
+      expression = parameterTranslator.signExtendByteToUInt(expression, pushBits);
     }
-    return generatePushToExpression(expression, bits);
+    return generatePushToExpression(expression, pushBits);
   }
 
   public String generatePushFlags(Integer bits) {
