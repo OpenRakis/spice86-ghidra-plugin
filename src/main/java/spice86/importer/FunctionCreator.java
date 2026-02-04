@@ -52,25 +52,40 @@ class FunctionCreator extends ObjectWithContextAndLog {
   }
 
   public void createOrUpdateFunction(String name, Address entryPoint) {
+    if (!program.getMemory().contains(entryPoint)) {
+      log.warning("Address " + entryPoint + " is not in memory. Skipping function creation for " + name);
+      return;
+    }
+    if (!program.getMemory().getBlock(entryPoint).isInitialized()) {
+      log.warning("Address " + entryPoint + " is in uninitialized memory. Skipping function creation for " + name);
+      return;
+    }
     boolean existing = program.getListing().getFunctionAt(entryPoint) != null;
     if (existing) {
       log.info("Re-creating function at address " + entryPoint + " with name " + name);
     } else {
       log.info("Creating function at address " + entryPoint + " with name " + name);
     }
-    if (!runCreateFunctionCommand(entryPoint, name, existing)) {
-      throw new RuntimeException("Failed to create function at " + entryPoint);
+    String error = runCreateFunctionCommand(entryPoint, name, existing);
+    if (error != null) {
+      log.error("Failed to create function at " + entryPoint + ": " + error + ". Skipping.");
+      return;
     }
     markFunctionAsReturning(entryPoint);
   }
 
   private void markFunctionAsReturning(Address entryPoint) {
     Function function = program.getListing().getFunctionAt(entryPoint);
-    function.setNoReturn(false);
+    if (function != null) {
+      function.setNoReturn(false);
+    }
   }
 
-  private boolean runCreateFunctionCommand(Address entryPoint, String name, boolean recreate) {
+  private String runCreateFunctionCommand(Address entryPoint, String name, boolean recreate) {
     CreateFunctionCmd cmd = new CreateFunctionCmd(name, entryPoint, null, SourceType.USER_DEFINED, false, recreate);
-    return cmd.applyTo(program, taskMonitor);
+    if (cmd.applyTo(program, taskMonitor)) {
+      return null;
+    }
+    return cmd.getStatusMsg();
   }
 }

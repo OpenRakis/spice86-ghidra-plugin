@@ -89,7 +89,15 @@ public class FunctionGenerator {
         continue;
       }
       String caseString = "  case " + Utils.toHexWith0X(target.toPhysical() - parsedProgram.getCs1Physical()) + ":";
-      String gotoTarget = JumpCallTranslator.getLabelToAddress(target, false);
+      
+      // Use the actual instruction address for the label name if possible
+      SegmentedAddress labelAddress = target;
+      ParsedInstruction targetInstruction = parsedProgram.getInstructionAtSegmentedAddress(target);
+      if (targetInstruction != null) {
+        labelAddress = targetInstruction.getInstructionSegmentedAddress();
+      }
+      
+      String gotoTarget = JumpCallTranslator.getLabelToAddress(labelAddress, false);
       String jumpSourceAddresses = getJumpSourceAddressesToString(target);
       res.append(
           caseString + " goto " + gotoTarget + ";break; // Target of external jump from " + jumpSourceAddresses

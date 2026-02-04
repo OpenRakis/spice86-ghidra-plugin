@@ -170,6 +170,11 @@ public class InstructionGenerator {
     if (canUseNativeOperation()) {
       return dest + nativeOperation + ";";
     }
+    String className = operation.substring(0, operation.lastIndexOf('.'));
+    if ("Alu".equals(className)) {
+      String methodName = operation.substring(operation.lastIndexOf('.') + 1);
+      return parameterTranslator.generateAssignment(dest, className + bits + "." + methodName + "(" + dest + ")");
+    }
     return parameterTranslator.generateAssignment(dest, operation + bits + "(" + dest + ")");
   }
 
@@ -177,6 +182,11 @@ public class InstructionGenerator {
       Integer bits) {
     String dest = parameterTranslator.toSpice86Value(parameters[0], bits);
     String operand = parameterTranslator.toSpice86Value(parameters[1], bits);
+    String className = operation.substring(0, operation.lastIndexOf('.'));
+    if ("Alu".equals(className)) {
+      String methodName = operation.substring(operation.lastIndexOf('.') + 1);
+      return parameterTranslator.generateAssignment(dest, className + bits + "." + methodName + "(" + operand + ")");
+    }
     return parameterTranslator.generateAssignment(dest, operation + bits + "(" + operand + ")");
   }
 
@@ -202,7 +212,14 @@ public class InstructionGenerator {
       }
       res += "// " + resNativeOperation + '\n';
     }
-    res += parameterTranslator.generateAssignment(dest, operation + bitsParameter1 + "(" + dest + ", " + operand + ")");
+    // Extract class and method name from "Class.Method" to generate "Class{bits}.Method"
+    String className = operation.substring(0, operation.lastIndexOf('.'));
+    if ("Alu".equals(className)) {
+      String methodName = operation.substring(operation.lastIndexOf('.') + 1);
+      res += parameterTranslator.generateAssignment(dest, className + bitsParameter1 + "." + methodName + "(" + dest + ", " + operand + ")");
+    } else {
+      res += parameterTranslator.generateAssignment(dest, operation + bitsParameter1 + "(" + dest + ", " + operand + ")");
+    }
     return res;
   }
 
@@ -210,6 +227,12 @@ public class InstructionGenerator {
     Integer bitsParameter1 = parsedInstruction.getParameter1BitLength();
     String dest = parameterTranslator.toSpice86Value(parameters[0], bitsParameter1);
     String operand = signExtendParameter2IfNeeded(parameters);
+    // Extract class and method name from "Class.Method" to generate "Class{bits}.Method"
+    String className = operation.substring(0, operation.lastIndexOf('.'));
+    if ("Alu".equals(className)) {
+      String methodName = operation.substring(operation.lastIndexOf('.') + 1);
+      return className + bitsParameter1 + "." + methodName + "(" + dest + ", " + operand + ");";
+    }
     return operation + bitsParameter1 + "(" + dest + ", " + operand + ");";
   }
 
@@ -255,7 +278,7 @@ public class InstructionGenerator {
   private String generateScas(String[] parameters, int bits) {
     String param1 = getAXOrAL(bits);
     String param2 = getDestination(parameters, bits);
-    String operation = "Alu.Sub" + bits + "(" + param1 + ", " + param2 + ");";
+    String operation = "Alu" + bits + ".Sub(" + param1 + ", " + param2 + ");";
     return generateStringOperation(operation, false, true, bits);
   }
 
@@ -276,7 +299,7 @@ public class InstructionGenerator {
   private String generateCmps(String[] parameters, int bits) {
     String param1 = getSource(parameters, bits);
     String param2 = getDestination(parameters, bits);
-    String operation = "Alu.Sub" + bits + "(" + param1 + ", " + param2 + ");";
+    String operation = "Alu" + bits + ".Sub(" + param1 + ", " + param2 + ");";
     return generateStringOperation(operation, true, true, bits);
   }
 
@@ -331,7 +354,7 @@ public class InstructionGenerator {
 
   private String generateNeg(String[] parameters, Integer bits) {
     String parameter = parameterTranslator.toSpice86Value(parameters[0], bits);
-    return parameterTranslator.generateAssignment(parameter, "Alu.Sub" + bits + "(0, " + parameter + ")");
+    return parameterTranslator.generateAssignment(parameter, "Alu" + bits + ".Sub(0, " + parameter + ")");
   }
 
   private String generateLXS(String segmentRegister, String[] parameters) {
@@ -383,8 +406,12 @@ public class InstructionGenerator {
       String destination = parameterTranslator.toSpice86Value(parameters[0], bits);
       String operand1 = parameterTranslator.toSpice86Value(parameters[1], bits);
       String operand2 = parameterTranslator.toSpice86Value(parameters[2], bits);
-      return parameterTranslator.generateAssignment(destination,
-          parameterTranslator.castToUnsignedInt("Alu.Imul" + bits + "(" + operand1 + ", " + operand2 + ")", bits));
+      String signedType = parameterTranslator.toSignedType(bits);
+      String cast = "(" + signedType + ")";
+      String aluCall = "Alu" + bits + ".Imul(" + cast + operand1 + ", " + cast + operand2 + ")";
+      String assignment = parameterTranslator.generateAssignment(destination,
+          parameterTranslator.castToUnsignedInt(aluCall, bits));
+      return "unchecked {\n" + Utils.indent(assignment, 2) + "\n}";
     }
     // Regular grp3 imul
     return generateGrp3ImulMul(true, bits, "Imul", parameters[0]);
@@ -399,7 +426,7 @@ public class InstructionGenerator {
     int resBits = bits * 2;
     String resType = signed ? parameterTranslator.toSignedType(resBits) : parameterTranslator.toUnsignedType(resBits);
     String operation = parameterTranslator.generateAssignmentWithType(resType, tempVar,
-        "Alu." + aluOperation + bits + "(" + opSignCast + opRes1 + ", " + opSignCast + op2
+        "Alu" + bits + "." + aluOperation + "(" + opSignCast + opRes1 + ", " + opSignCast + op2
             + ")");
     String operationAssignment1 =
         parameterTranslator.generateAssignment(opRes1, parameterTranslator.castToUnsignedInt(tempVar, bits));
@@ -412,7 +439,7 @@ public class InstructionGenerator {
     int op1Bits = bits * 2;
     String op1Type = signed ? parameterTranslator.toSignedType(op1Bits) : parameterTranslator.toUnsignedType(op1Bits);
     String op1Var = parameterTranslator.generateTempVar("op1" + aluOperation);
-    String op1Cast = signed ? "(" + op1Type + ")" : "";
+    String op1Cast = "(" + op1Type + ")";
     String op1Assignment =
         parameterTranslator.generateAssignmentWithType(op1Type, op1Var, op1Cast + generateDivIdviOp1(bits));
 
@@ -426,7 +453,7 @@ public class InstructionGenerator {
     String operationResultType = op2Type + "?";
     String operationResultVar = parameterTranslator.generateTempVar("res" + aluOperation);
     String operationAssignment = parameterTranslator.generateAssignmentWithType(operationResultType, operationResultVar,
-        "Alu." + aluOperation + bits + "(" + op1Var + ", " + op2Var
+        "Alu" + bits + "." + aluOperation + "(" + op1Var + ", " + op2Var
             + ")");
 
     String nullCheckAssignment =
@@ -485,7 +512,7 @@ public class InstructionGenerator {
   }
 
   private String generateIDiv(String[] parameters, Integer bits) {
-    return generateGrp3IdivDiv(true, bits, "IDiv", parameters[0]);
+    return generateGrp3IdivDiv(true, bits, "Idiv", parameters[0]);
   }
 
   private String generateLea(String[] parameters) {
@@ -532,6 +559,16 @@ public class InstructionGenerator {
     }
     String address = parsedInstruction.getInstructionSegmentedAddress().toString();
     return "// " + instuctionAsm + " (" + address + ")\n" + instruction;
+  }
+
+  /* BCD Instructions Helper */
+  private String generateBcdInstruction(String method, String[] params, Integer bits) {
+    String param = parameterTranslator.toSpice86Value(params[0], bits);
+    return "new Instructions8(Cpu.State, Cpu, Memory, new(Memory, Cpu, Cpu.State))." + method + "(" + param + ");";
+  }
+
+  private String generateBcdInstructionNoParam(String method) {
+    return "new Instructions8(Cpu.State, Cpu, Memory, new(Memory, Cpu, Cpu.State))." + method + "();";
   }
 
   private String generateModifiedInstructionWarning() {
@@ -674,10 +711,10 @@ public class InstructionGenerator {
     log.info("Params are " + String.join(",", params));
     Integer parameter1Bits = parsedInstruction.getParameter1BitLength();
     return switch (mnemonic) {
-      case "AAA" -> "Cpu.Aaa();";
-      case "AAD" -> "Cpu.Aad(" + parameterTranslator.toSpice86Value(params[0], parameter1Bits) + ");";
-      case "AAM" -> "Cpu.Aam(" + parameterTranslator.toSpice86Value(params[0], parameter1Bits) + ");";
-      case "AAS" -> "Cpu.Aas();";
+      case "AAA" -> generateBcdInstructionNoParam("Aaa");
+      case "AAD" -> generateBcdInstruction("Aad", params, parameter1Bits);
+      case "AAM" -> generateBcdInstruction("Aam", params, parameter1Bits);
+      case "AAS" -> generateBcdInstructionNoParam("Aas");
       case "ADC" -> generateAssignmentWith2Parameters("Alu.Adc", null, params);
       case "ADD" -> generateAssignmentWith2Parameters("Alu.Add", "+", params);
       case "AND" -> generateAssignmentWith2Parameters("Alu.And", "&", params);
@@ -692,8 +729,8 @@ public class InstructionGenerator {
       case "CMPSB" -> generateCmps(params, 8);
       case "CMPSW" -> generateCmps(params, 16);
       case "CWD" -> generateCwd();
-      case "DAS" -> "Cpu.Das();";
-      case "DAA" -> "Cpu.Daa();";
+      case "DAS" -> generateBcdInstructionNoParam("Das");
+      case "DAA" -> generateBcdInstructionNoParam("Daa");
       case "DEC" -> generateDec(params, parameter1Bits);
       case "DIV" -> generateDiv(params, parameter1Bits);
       case "HLT" -> "return Hlt();";
