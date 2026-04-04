@@ -448,7 +448,7 @@ public class InstructionGenerator {
     if (bits == 8) {
       return "AX";
     } else if (bits == 16) {
-      return "(DX << 16 | AX)";
+      return "(((uint)DX << 16) | AX)";
     } else if (bits == 32) {
       return "(((ulong)EDX << 32) | EAX)";
     } else {

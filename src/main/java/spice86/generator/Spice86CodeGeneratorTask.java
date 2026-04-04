@@ -10,6 +10,7 @@ import spice86.generator.parsing.ParsedFunctionBuilder;
 import spice86.generator.parsing.ParsedProgram;
 import spice86.generator.parsing.ParsedProgramBuilder;
 import spice86.tools.Context;
+import spice86.tools.RuntimeAddressTranslator;
 import spice86.tools.Spice86Task;
 import spice86.tools.config.CodeGeneratorConfig;
 import spice86.tools.config.PluginConfiguration;
@@ -35,15 +36,17 @@ public class Spice86CodeGeneratorTask extends Spice86Task {
   protected void runWithContextAndConfiguration(Context context, PluginConfiguration pluginConfiguration)
       throws Exception {
     CodeGeneratorConfig codeGeneratorConfig = pluginConfiguration.getCodeGeneratorConfig();
+    RuntimeAddressTranslator addressTranslator =
+        RuntimeAddressTranslator.infer(program, pluginConfiguration);
     Listing listing = program.getListing();
     FunctionIterator functionIterator = listing.getFunctions(true);
-    ParsedFunctionBuilder parsedFunctionBuilder = new ParsedFunctionBuilder(context);
+    ParsedFunctionBuilder parsedFunctionBuilder = new ParsedFunctionBuilder(context, addressTranslator);
     List<ParsedFunction> parsedFunctions = StreamSupport.stream(functionIterator.spliterator(), false)
         .map(f -> parsedFunctionBuilder.createParsedFunction(f))
         .filter(Objects::nonNull)
         .sorted(Comparator.comparingInt(f -> f.getEntrySegmentedAddress().toPhysical()))
         .toList();
-    ParsedProgramBuilder parsedProgramBuilder = new ParsedProgramBuilder(context);
+    ParsedProgramBuilder parsedProgramBuilder = new ParsedProgramBuilder(context, addressTranslator);
     ParsedProgram parsedProgram =
         parsedProgramBuilder.createParsedProgram(parsedFunctions, pluginConfiguration.getExecutionFlow(),
             codeGeneratorConfig);

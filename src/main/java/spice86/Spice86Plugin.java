@@ -15,7 +15,7 @@ import ghidra.program.model.listing.Program;
 import ghidra.util.task.Task;
 import ghidra.util.task.TaskLauncher;
 import spice86.generator.Spice86CodeGeneratorTask;
-import spice86.importer.Spice86DataImportTask;
+import spice86.importer.Spice86RuntimeEvidenceTask;
 
 import javax.swing.ImageIcon;
 
@@ -24,13 +24,13 @@ import javax.swing.ImageIcon;
     status = PluginStatus.RELEASED,
     packageName = DeveloperPluginPackage.NAME,
     category = PluginCategoryNames.ANALYSIS,
-    shortDescription = "Spice86 Ghidra integration",
-    description = "Imports data from Spice86 and generates C#",
+    shortDescription = "Spice86 runtime import and C# generation",
+    description = "Imports runtime evidence from Spice86 into the current program and generates C# overrides",
     servicesRequired = { ProgramManager.class }
 )
 //@formatter:on
 public class Spice86Plugin extends ProgramPlugin {
-  private DockingAction importAction;
+  private DockingAction importRuntimeEvidenceAction;
   private DockingAction generateCSharpAction;
 
   public Spice86Plugin(PluginTool tool) {
@@ -40,17 +40,18 @@ public class Spice86Plugin extends ProgramPlugin {
   @Override
   protected void init() {
     super.init();
-    importAction = createAction("Import Action", "/images/re.png", "Import runtime data", this::importData);
-    tool.addAction(importAction);
+    importRuntimeEvidenceAction =
+        createAction("Import Runtime Evidence", "/images/re.png", "Import runtime evidence", this::importRuntimeEvidence);
+    tool.addAction(importRuntimeEvidenceAction);
     generateCSharpAction =
-        createAction("C# Generation Action", "/images/csharp.png", "Generate C#", this::generateCSharp);
+        createAction("Generate C# Overrides", "/images/csharp.png", "Generate C#", this::generateCSharp);
     tool.addAction(generateCSharpAction);
   }
 
   @Override
   protected void dispose() {
-    if (importAction != null) {
-      tool.removeAction(importAction);
+    if (importRuntimeEvidenceAction != null) {
+      tool.removeAction(importRuntimeEvidenceAction);
     }
     if (generateCSharpAction != null) {
       tool.removeAction(generateCSharpAction);
@@ -60,14 +61,14 @@ public class Spice86Plugin extends ProgramPlugin {
 
   @Override
   public void programActivated(Program activatedProgram) {
-    importAction.setEnabled(true);
+    importRuntimeEvidenceAction.setEnabled(true);
     generateCSharpAction.setEnabled(true);
   }
 
   @Override
   public void programDeactivated(Program deactivatedProgram) {
     if (currentProgram == deactivatedProgram) {
-      importAction.setEnabled(false);
+      importRuntimeEvidenceAction.setEnabled(false);
       generateCSharpAction.setEnabled(false);
     }
   }
@@ -90,8 +91,8 @@ public class Spice86Plugin extends ProgramPlugin {
     new TaskLauncher(task, tool.getActiveComponentProvider().getComponent(), 250);
   }
 
-  public void importData() {
-    runTask(new Spice86DataImportTask(getConsoleService(), currentProgram));
+  public void importRuntimeEvidence() {
+    runTask(new Spice86RuntimeEvidenceTask(getConsoleService(), currentProgram));
   }
 
   public void generateCSharp() {

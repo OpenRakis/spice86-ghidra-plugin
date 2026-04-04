@@ -53,7 +53,9 @@ public class JumpCallTranslator {
   }
 
   private boolean hasGhidraLabel() {
-    Address address = Utils.toAddr(context.getProgram(), this.instructionSegmentedAddress.toPhysical());
+    Address address = Utils.toAddr(
+        context.getProgram(),
+        this.instructionSegmentedAddress.toPhysical() + parsedProgram.getAddressDelta());
     Symbol label = new LabelManager(context).getPrimarySymbol(address);
     return label != null && (label.getSymbolType() == SymbolType.LABEL
         || label.getSymbolType() == SymbolType.FUNCTION);

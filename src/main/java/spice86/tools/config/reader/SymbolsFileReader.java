@@ -20,6 +20,10 @@ class SymbolsFileReader extends ObjectWithContextAndLog {
   public Map<SegmentedAddress, String> readFunctionFile(String filePath) throws IOException {
     log.info("Reading symbols file");
     Map<SegmentedAddress, String> res = new HashMap<>();
+    if (!Files.exists(Paths.get(filePath))) {
+      log.warning("Symbols file " + filePath + " does not exist, continuing without recorded functions.");
+      return res;
+    }
     List<String> lines = Files.readAllLines(Paths.get(filePath));
     for (String line : lines) {
       parseLine(res, line);

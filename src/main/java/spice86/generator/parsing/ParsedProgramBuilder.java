@@ -3,6 +3,7 @@ package spice86.generator.parsing;
 import spice86.generator.CodeToInject;
 import spice86.tools.Context;
 import spice86.tools.ObjectWithContextAndLog;
+import spice86.tools.RuntimeAddressTranslator;
 import spice86.tools.SegmentedAddress;
 import spice86.tools.Utils;
 import spice86.tools.config.ByteModificationRecord;
@@ -20,13 +21,17 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ParsedProgramBuilder extends ObjectWithContextAndLog {
-  public ParsedProgramBuilder(Context context) {
+  private final RuntimeAddressTranslator addressTranslator;
+
+  public ParsedProgramBuilder(Context context, RuntimeAddressTranslator addressTranslator) {
     super(context);
+    this.addressTranslator = addressTranslator;
   }
 
   public ParsedProgram createParsedProgram(List<ParsedFunction> functions, ExecutionFlow executionFlow,
       CodeGeneratorConfig codeGeneratorConfig) {
     ParsedProgram res = new ParsedProgram();
+    res.addressDelta = addressTranslator.getAddressDelta();
     res.executionFlow = executionFlow;
     res.entryPoints.putAll(
         functions.stream().collect(Collectors.toMap(f -> f.getEntrySegmentedAddress().toPhysical(), f -> f)));
