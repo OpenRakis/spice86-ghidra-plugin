@@ -8,6 +8,7 @@ import ghidra.program.model.listing.Instruction;
 import spice86.tools.Context;
 import spice86.tools.Log;
 import spice86.tools.ObjectWithContextAndLog;
+import spice86.tools.RuntimeAddressTranslator;
 import spice86.tools.SegmentedAddress;
 import spice86.tools.Utils;
 
@@ -16,9 +17,11 @@ import java.util.List;
 
 public class ParsedFunctionBuilder extends ObjectWithContextAndLog {
   private ParsedInstructionBuilder parsedInstructionBuilder;
+  private final RuntimeAddressTranslator addressTranslator;
 
-  public ParsedFunctionBuilder(Context context) {
+  public ParsedFunctionBuilder(Context context, RuntimeAddressTranslator addressTranslator) {
     super(context);
+    this.addressTranslator = addressTranslator;
     this.parsedInstructionBuilder = new ParsedInstructionBuilder(context);
   }
 
@@ -35,9 +38,9 @@ public class ParsedFunctionBuilder extends ObjectWithContextAndLog {
       log.error("Could not determine segmented address for function entry point, aborting.");
       return null;
     }
-    if (ghidraAddress != entrySegmentedAddress.toPhysical()) {
+    if (!addressTranslator.isProgramAddressFor(function.getEntryPoint(), entrySegmentedAddress)) {
       log.error(
-          "Function entry point in ghidra is not the same as the one in spice86, this could be because ghidra created a function with the same name.");
+          "Function entry point in ghidra is not the translated Spice86 entry point, this could be because ghidra created a function with the same name.");
       return null;
     }
 
@@ -55,7 +58,7 @@ public class ParsedFunctionBuilder extends ObjectWithContextAndLog {
   private SegmentedAddress getInstructionAddress(Log log, Instruction instruction,
       SegmentedAddress entrySegmentedAddress) {
     long instructionAddress = instruction.getAddress().getUnsignedOffset();
-    long entryAddress = entrySegmentedAddress.toPhysical();
+    long entryAddress = addressTranslator.toProgramLinear(entrySegmentedAddress.toPhysical());
     long delta = instructionAddress - entryAddress;
     long offset = entrySegmentedAddress.getOffset() + delta;
     if (offset < 0 || offset > 0xFFFF) {
@@ -101,8 +104,8 @@ public class ParsedFunctionBuilder extends ObjectWithContextAndLog {
         dispatchInstruction(parsedInstruction, entrySegmentedAddress, instructionsBeforeEntry,
             instructionsAfterEntry);
         log.info("Attached instruction to function " + name + ": " + parsedInstruction);
-        nextAddress =
-            parsedInstruction.getNextInstructionSegmentedAddress().toPhysical();
+        nextAddress = (int)addressTranslator.toProgramLinear(
+            parsedInstruction.getNextInstructionSegmentedAddress().toPhysical());
         log.info("Next address is " + Utils.toHexWith0X(nextAddress));
         if (nextAddress > maxAddress) {
           break;

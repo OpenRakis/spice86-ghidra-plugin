@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 public class ParsedProgram {
+  protected long addressDelta;
   protected ExecutionFlow executionFlow;
   // List of addresses where to inject code to check timer and other external interrupts
   protected CodeToInject codeToInject;
@@ -77,7 +78,7 @@ public class ParsedProgram {
   }
 
   public ParsedFunction getFunctionAtGhidraAddressAny(Address address) {
-    return getFunctionAtAddressAny((int)address.getUnsignedOffset());
+    return getFunctionAtAddressAny((int)(address.getUnsignedOffset() - addressDelta));
   }
 
   public ParsedFunction getFunctionAtAddressAny(int address) {
@@ -89,7 +90,7 @@ public class ParsedProgram {
   }
 
   public ParsedFunction getFunctionAtGhidraAddressEntryPoint(Address address) {
-    return getFunctionAtAddressEntryPoint((int)address.getUnsignedOffset());
+    return getFunctionAtAddressEntryPoint((int)(address.getUnsignedOffset() - addressDelta));
   }
 
   private ParsedFunction getFunctionAtAddressEntryPoint(int address) {
@@ -102,6 +103,10 @@ public class ParsedProgram {
 
   public int getCs1Physical() {
     return cs1;
+  }
+
+  public long getAddressDelta() {
+    return addressDelta;
   }
 
   public Set<Integer> getPossibleInstructionByteValues(int address) {

@@ -1,17 +1,57 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 
-<HTML>
-  <HEAD>
-    <META http-equiv="Content-Language" content="en-us">
-    <TITLE>Spice86 plugin</TITLE>
-    <LINK rel="stylesheet" type="text/css" href="help/shared/DefaultStyle.css">
-  </HEAD>
+<html>
+  <head>
+    <meta http-equiv="Content-Language" content="en-us">
+    <title>Spice86 Runtime Import And Generation</title>
+    <link rel="stylesheet" type="text/css" href="help/shared/DefaultStyle.css">
+  </head>
 
-  <BODY>
-    <H1><a name="HelpAnchor"></a>Skeleton Help File for a Module</H1>
+  <body>
+    <h1><a name="HelpAnchor"></a>Spice86 Runtime Import And Generation</h1>
 
-    <P>This is a simple skeleton help topic. For a better description of what should and should not
-    go in here, see the "sample" Ghidra extension in the Extensions/Ghidra directory, or see your 
-    favorite help topic. In general, language modules do not have their own help topics.</P>
-  </BODY>
-</HTML>
+    <p>
+      The Spice86 plugin restores the original Spice86 workflow inside Ghidra:
+      import runtime evidence from a dump directory, use it to improve Ghidra's view
+      of the DOS program, and then generate Spice86 C# overrides from the resulting model.
+    </p>
+
+    <h2>Menu Actions</h2>
+    <ul>
+      <li><b>Spice86 -&gt; Import runtime evidence</b></li>
+      <li><b>Spice86 -&gt; Generate C#</b></li>
+    </ul>
+
+    <h2>Imported Data</h2>
+    <ul>
+      <li>Recorded function names from <code>spice86dumpGhidraSymbols.txt</code></li>
+      <li>Dynamic call and jump targets from <code>spice86dumpExecutionFlow.json</code></li>
+      <li>Observed return targets</li>
+      <li>Bookmarks for executed code blocks</li>
+      <li>Bookmarks for executable byte writes when the dump contains them</li>
+    </ul>
+
+    <h2>How To Use</h2>
+    <ol>
+      <li>Set <code>SPICE86_DUMPS_FOLDER</code> to the directory that contains the dump files.</li>
+      <li>Open the matching program in Ghidra.</li>
+      <li>Run <b>Spice86 -&gt; Import runtime evidence</b>.</li>
+      <li>Run <b>Spice86 -&gt; Generate C#</b> once the program has been annotated.</li>
+    </ol>
+
+    <p>
+      The importer infers the linear delta between Spice86 runtime addresses and the current Ghidra
+      program entrypoint, so it can work both with runtime-aligned images and standard DOS EXE
+      imports.
+    </p>
+
+    <h2>Design Notes</h2>
+    <p>
+      This restore intentionally fixes the address-model mismatch between Spice86 runtime addresses
+      and Ghidra program addresses, but it does not add a new memory-dump repair phase. The import
+      side remains conservative: it does not delete existing references wholesale, does not
+      repeatedly rebuild functions, and only creates new disassembly or functions at observed
+      entrypoints when that is safe.
+    </p>
+  </body>
+</html>

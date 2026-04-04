@@ -223,7 +223,7 @@ public class ParsedInstructionBuilder extends ObjectWithContextAndLog {
   private boolean isParameterModified(ParsedInstruction parsedInstruction,
       Map<Integer, Set<Integer>> possibleInstructionByteValues, Integer parameter,
       Integer parameterBitLength, Integer parameterOffset) {
-    if (parameter == null) {
+    if (parameter == null || parameterBitLength == null || parameterOffset == null) {
       // No parameter, nothing to check
       return false;
     }
